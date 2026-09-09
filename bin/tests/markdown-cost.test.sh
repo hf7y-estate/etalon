@@ -294,6 +294,26 @@ RUN_OUT="$(cd "$T/reaptmpl" && MARKDOWN_COST_RATCHET="$TR5" "$SCRIPT" --census 2
 rc  "T5 removing it exits 0 even while another document grows" 0 "$RUN_RC"
 has "T5 and the tree is one file lighter" "$RUN_OUT" "1 file(s) below the baseline"
 
+echo "-- R. research/ and DESIGN-NOTES.md are measured-finding records, not priced (hf7y/chezz#89, #100)"
+newrepo excluded
+mkdir -p "$T/excluded/research/engine" "$T/excluded/nested/research"
+TRE="$T/excluded/.r"
+censE() { rm -f "$TRE"; G "$T/excluded" add -A; (cd "$T/excluded" && MARKDOWN_COST_RATCHET="$TRE" "$SCRIPT" --accept 2>&1); }
+has "R0 the seeded tree holds only CHANGES.md" "$(censE)" "1 prose-bearing file(s)"
+
+lines 60 "$T/excluded/research/engine/finding.md" 'a measured finding'
+has "R1 a top-level research/ finding is not priced"      "$(censE)" "1 prose-bearing file(s)"
+
+lines 60 "$T/excluded/nested/research/finding.md" 'a nested research finding'
+has "R2 research/ is excluded at any depth"               "$(censE)" "1 prose-bearing file(s)"
+
+lines 60 "$T/excluded/DESIGN-NOTES.md" 'a durable decision'
+has "R3 top-level DESIGN-NOTES.md is not priced"           "$(censE)" "1 prose-bearing file(s)"
+
+mkdir -p "$T/excluded/vendor"
+lines 5 "$T/excluded/vendor/DESIGN-NOTES.md" 'a nested copy, not the repo record'
+has "R4 only the TOP-LEVEL DESIGN-NOTES.md is exempt, a nested one is priced" "$(censE)" "2 prose-bearing file(s)"
+
 echo "-- U. a unit change re-bases once, and pays for nothing"
 newrepo unitchg
 mkdir -p "$T/unitchg/lib"
