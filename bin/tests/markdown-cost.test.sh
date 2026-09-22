@@ -333,6 +333,15 @@ printf '#!/usr/bin/env bash\n# a big doc nothing else names\n# line two\n# line 
 printf '#!/usr/bin/env bash\n# a suite, discovered by a glob and named by nothing\n# line two\necho x\n' > "$T/unitchg/lib/thing.test.sh"
 printf 'orphan.sh is not mentioned here; lib/named.sh is\n' > "$T/unitchg/README.md"
 printf '#!/usr/bin/env bash\n# a named file\necho x\n' > "$T/unitchg/lib/named.sh"
+# hf7y/senechal#973: a directory-prefixed test convention (test-*.sh,
+# _test-*.sh, test_*.py), and .claude/commands/*.md -- discovered by
+# tools/run-suites.sh's own glob and by the Claude Code harness reading the
+# directory, respectively. Neither is named anywhere in the tree either.
+mkdir -p "$T/unitchg/health" "$T/unitchg/remedies" "$T/unitchg/tools" "$T/unitchg/.claude/commands"
+printf '#!/usr/bin/env bash\n# discovered by health/test-*.sh\necho x\n' > "$T/unitchg/health/test-thing.sh"
+printf '#!/usr/bin/env bash\n# discovered by remedies/_test-*.sh\necho x\n' > "$T/unitchg/remedies/_test-thing.sh"
+printf '# discovered by tools/test-*.py\nimport unittest\n' > "$T/unitchg/tools/test_thing.py"
+printf '# discovered by the Claude Code harness, not grepped for\n' > "$T/unitchg/.claude/commands/thing.md"
 G "$T/unitchg" add -A; G "$T/unitchg" commit -qm "candidates fixture"
 RUN_OUT="$(cd "$T/unitchg" && MARKDOWN_COST_RATCHET="$T/unitchg/.r" "$SCRIPT" --census 2>&1)"
 has   "C1 the directive prints where to look, not only how many"  "$RUN_OUT" "WHERE TO LOOK"
@@ -343,6 +352,10 @@ has   "C3 ...and is marked as unnamed, which is the ranking key"  "$RUN_OUT" "NO
 # true of every suite. An agent paying the bill from that list deletes the
 # estate's tests -- the same cheapest-token failure, with worse blast radius.
 hasnt "C4 a suite a glob discovers is NEVER a candidate"          "$RUN_OUT" "thing.test.sh"
+hasnt "C4a ...nor a directory-prefixed test-*.sh suite"           "$RUN_OUT" "test-thing.sh"
+hasnt "C4b ...nor a _test-*.sh suite"                             "$RUN_OUT" "_test-thing.sh"
+hasnt "C4c ...nor a test_*.py suite"                              "$RUN_OUT" "test_thing.py"
+hasnt "C4d ...nor a .claude/commands/*.md file"                   "$RUN_OUT" "commands/thing.md"
 has   "C5 the list says it is candidates, not a verdict"          "$RUN_OUT" "CANDIDATE, not a verdict"
 has   "C6 ...and names the failure it exists to prevent"          "$RUN_OUT" "removing the comment"
 

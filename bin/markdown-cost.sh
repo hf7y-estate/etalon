@@ -162,10 +162,23 @@ CANDIDATES_MAX="${MARKDOWN_COST_CANDIDATES:-10}"
 # the same cheapest-token failure this list exists to stop, with worse blast
 # radius. Anything a glob reaches is not a candidate here.
 candidate_excluded() { # <path> -> 0 if a runner or a platform discovers it
+  local base="${1##*/}"
   case "$1" in
     *.test.sh|*/tests/*|*/test/*)      return 0 ;;
     .github/workflows/*|.github/*)     return 0 ;;
     */conftest.py|*/__init__.py)       return 0 ;;
+    # hf7y/senechal's own runner globs a directory-prefixed convention
+    # (`test-*.sh`/`_test-*.sh`/`test_*.py`) instead of the `*.test.sh`
+    # suffix above -- same "a caller globs, nothing greps for it by name"
+    # shape, different spelling. hf7y/senechal#973: every zero-ref
+    # candidate the old patterns missed was one of these, discovered live
+    # by tools/run-suites.sh's own glob. .claude/commands/*.md is the same
+    # shape again: discovered by the Claude Code harness reading the
+    # directory, not by anything in the tree naming the file.
+    .claude/commands/*.md)             return 0 ;;
+  esac
+  case "$base" in
+    test-*.sh|_test-*.sh|test_*.py|*_test.py) return 0 ;;
   esac
   return 1
 }
