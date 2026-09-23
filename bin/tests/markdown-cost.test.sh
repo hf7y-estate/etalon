@@ -333,6 +333,14 @@ printf '#!/usr/bin/env bash\n# a big doc nothing else names\n# line two\n# line 
 printf '#!/usr/bin/env bash\n# a suite, discovered by a glob and named by nothing\n# line two\necho x\n' > "$T/unitchg/lib/thing.test.sh"
 printf 'orphan.sh is not mentioned here; lib/named.sh is\n' > "$T/unitchg/README.md"
 printf '#!/usr/bin/env bash\n# a named file\necho x\n' > "$T/unitchg/lib/named.sh"
+# hf7y/senechal's run-suites.sh globs health/test-*.sh, remedies/_test-*.sh
+# and tools/test-*.py -- a PREFIX, not etalon's own *.test.sh SUFFIX. Measured
+# live on hf7y/senechal#982's PR #999: every one of these ranked as an
+# unnamed candidate first, alongside real suites like thing.test.sh above.
+mkdir -p "$T/unitchg/health" "$T/unitchg/remedies" "$T/unitchg/tools"
+printf '#!/usr/bin/env bash\n# a suite discovered by a prefix glob\necho x\n' > "$T/unitchg/health/test-prefixed.sh"
+printf '#!/usr/bin/env bash\n# a suite discovered by an underscore-prefix glob\necho x\n' > "$T/unitchg/remedies/_test-prefixed.sh"
+printf '# a suite discovered by a python prefix glob\n' > "$T/unitchg/tools/test_prefixed.py"
 G "$T/unitchg" add -A; G "$T/unitchg" commit -qm "candidates fixture"
 RUN_OUT="$(cd "$T/unitchg" && MARKDOWN_COST_RATCHET="$T/unitchg/.r" "$SCRIPT" --census 2>&1)"
 has   "C1 the directive prints where to look, not only how many"  "$RUN_OUT" "WHERE TO LOOK"
@@ -343,6 +351,9 @@ has   "C3 ...and is marked as unnamed, which is the ranking key"  "$RUN_OUT" "NO
 # true of every suite. An agent paying the bill from that list deletes the
 # estate's tests -- the same cheapest-token failure, with worse blast radius.
 hasnt "C4 a suite a glob discovers is NEVER a candidate"          "$RUN_OUT" "thing.test.sh"
+hasnt "C4a ...nor is one a PREFIX glob discovers (test-*.sh)"     "$RUN_OUT" "test-prefixed.sh"
+hasnt "C4b ...nor an underscore-prefix suite (_test-*.sh)"        "$RUN_OUT" "_test-prefixed.sh"
+hasnt "C4c ...nor a python prefix suite (test_*.py)"              "$RUN_OUT" "test_prefixed.py"
 has   "C5 the list says it is candidates, not a verdict"          "$RUN_OUT" "CANDIDATE, not a verdict"
 has   "C6 ...and names the failure it exists to prevent"          "$RUN_OUT" "removing the comment"
 
