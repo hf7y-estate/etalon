@@ -90,7 +90,12 @@ count_py_docstrings() { # <path> -> docstring prose lines
       next }
     if (s ~ /^[ \t]*#/) next
     if (s == "") next
-    t = s; sub(/^[A-Za-z]{0,2}/, "", t)          # r"""  f"""  rb"""
+    # {0,2} is a POSIX interval expression; mawk, the awk this script runs
+    # under here (readlink -f $(which awk)), does not implement intervals
+    # and matches empty rather than erroring, so the prefix below was never
+    # stripped and a prefixed docstring (r""" f""" rb""") was never counted.
+    # Two independent optional letters are the portable equivalent.
+    t = s; sub(/^[A-Za-z]?[A-Za-z]?/, "", t)     # r"""  f"""  rb"""
     if (index(t, "\"\"\"") == 1) q = "\"\"\""
     else if (index(t, "'"'"'") == 1) q = "'"'"'"
     else { prev = s; prevset = 1; next }

@@ -31,7 +31,13 @@ RATCHET="${STATE_PROSE_RATCHET:-$(dirname "${BASH_SOURCE[0]}")/state-prose.ratch
 
 SCAN_AWK='
 BEGIN {
-  QTY = "(^|[^a-z0-9_-])(two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|hundred|[0-9]+)[ -]([a-z][a-z-]*[ -]){0,2}[a-z][a-z-]*s([^a-z]|$)"
+  # ([a-z][a-z-]*[ -]){0,2} used a POSIX interval expression. mawk, the
+  # awk this script runs under here (readlink -f $(which awk)), does not
+  # implement intervals: it matches false silently rather than erroring,
+  # so QTY missed a counted plural separated from its number by one or
+  # more intervening words. The optional groups below, written out
+  # explicitly rather than as a POSIX interval, are the portable fix.
+  QTY = "(^|[^a-z0-9_-])(two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|hundred|[0-9]+)[ -]([a-z][a-z-]*[ -])?([a-z][a-z-]*[ -])?[a-z][a-z-]*s([^a-z]|$)"
   QTY_STOP = "(^|[^a-z])(is|was|has|as|this|thus|its|us|does|goes|less|else|yes|plus|across|unless|always|versus|status|series|means|says|gives|takes|makes|needs|reads|writes|exists|runs|does|its)([^a-z]|$)"
 }
 function lang(f) {
