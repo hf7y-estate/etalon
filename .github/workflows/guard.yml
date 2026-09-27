@@ -103,8 +103,14 @@ jobs:
       # The default range is $(git merge-base HEAD origin/main)..HEAD, so
       # origin/main must exist as a remote-tracking ref. actions/checkout
       # fetches the PR refs; main is not guaranteed among them even at depth 0.
+      # `main` is not a literal here on purpose: a caller whose default branch
+      # is not named main (e.g. master) still needs its OWN default branch
+      # aliased to origin/main, or this fetch 128s and the guard fails for a
+      # reason that has nothing to do with prose (hf7y/etalon#66).
       - name: Make origin/main resolvable
-        run: git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+        run: |
+          default_ref="$(git ls-remote --symref origin HEAD | awk '/^ref:/ {print $2}')"
+          git fetch --no-tags origin "+${default_ref}:refs/remotes/origin/main"
 
       - name: Seed the ratchet if this repo has none
         run: |
