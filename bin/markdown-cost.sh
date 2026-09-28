@@ -369,7 +369,7 @@ if [ "${1:-}" = --census ] || [ "${1:-}" = --accept ]; then
       printf '  therefore NOT in this baseline. census() reads `git ls-files`. Stage them\n' >&2
       printf '  and re-run --accept, or the next --census fails on this very commit.\n' >&2
     fi
-    printf '# markdown-cost.ratchet -- prose-bearing FILES in this tree. SHRINKS ONLY.\n# Written by markdown-cost.sh --accept, which refuses to raise it. A hand\n# edit that raises it is rejected by --census. See bin/markdown-cost.sh.\n# unit: %s -- what was measured. A number from another unit is not a floor.\n# accepted %s\n%s\n' \
+    printf '# markdown-cost.ratchet -- prose-bearing FILES in this tree. SHRINKS ONLY.\n# Written by markdown-cost.sh --accept, which refuses to raise it. A hand\n# edit that raises it is rejected by --census. See hf7y/etalon.\n# unit: %s -- what was measured. A number from another unit is not a floor.\n# accepted %s\n%s\n' \
       "$MEASURE_UNIT" "$(date -Is)" "$now" > "$RATCHET" || die2 "cannot write $RATCHET"
     printf 'markdown-cost --accept -- baseline is now %s prose-bearing file(s).\n' "$now"
     exit 0
