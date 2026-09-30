@@ -166,11 +166,21 @@ CANDIDATES_MAX="${MARKDOWN_COST_CANDIDATES:-10}"
 # agent paying the bill from it would have deleted the estate's tests, which is
 # the same cheapest-token failure this list exists to stop, with worse blast
 # radius. Anything a glob reaches is not a candidate here.
+#
+# `*.test.sh` is etalon's own convention; it is not the only one a glob
+# reaches. hf7y/senechal's run-suites.sh globs `health/test-*.sh`,
+# `remedies/_test-*.sh`, `bin/test-*.sh` and `tools/test-*.py` -- a
+# prefix, not a suffix -- and this list ranked every one of them as an
+# unnamed candidate first (measured live on hf7y/senechal#982's PR #999).
 candidate_excluded() { # <path> -> 0 if a runner or a platform discovers it
+  local b; b="$(basename -- "$1")"
   case "$1" in
     *.test.sh|*/tests/*|*/test/*)      return 0 ;;
     .github/workflows/*|.github/*)     return 0 ;;
     */conftest.py|*/__init__.py)       return 0 ;;
+  esac
+  case "$b" in
+    test-*|_test-*|test_*)             return 0 ;;
   esac
   return 1
 }
