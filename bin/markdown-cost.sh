@@ -172,11 +172,20 @@ CANDIDATES_MAX="${MARKDOWN_COST_CANDIDATES:-10}"
 # `remedies/_test-*.sh`, `bin/test-*.sh` and `tools/test-*.py` -- a
 # prefix, not a suffix -- and this list ranked every one of them as an
 # unnamed candidate first (measured live on hf7y/senechal#982's PR #999).
+#
+# `.claude/commands/*.md` is discovered the same way, by a different
+# reader: the Claude Code harness lists that directory to find skills,
+# never grepping the tree for the filename. Nothing NAMES a skill any
+# more than something names a test suite a glob finds -- measured live
+# on hf7y/senechal#973's PR, where `.claude/commands/triage-run.md`
+# ranked as an unnamed candidate alongside 25 false-positive test suites
+# (hf7y/etalon#52).
 candidate_excluded() { # <path> -> 0 if a runner or a platform discovers it
   local b; b="$(basename -- "$1")"
   case "$1" in
     *.test.sh|*/tests/*|*/test/*)      return 0 ;;
     .github/workflows/*|.github/*)     return 0 ;;
+    .claude/commands/*.md)             return 0 ;;
     */conftest.py|*/__init__.py)       return 0 ;;
   esac
   case "$b" in

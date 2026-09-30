@@ -341,6 +341,12 @@ mkdir -p "$T/unitchg/health" "$T/unitchg/remedies" "$T/unitchg/tools"
 printf '#!/usr/bin/env bash\n# a suite discovered by a prefix glob\necho x\n' > "$T/unitchg/health/test-prefixed.sh"
 printf '#!/usr/bin/env bash\n# a suite discovered by an underscore-prefix glob\necho x\n' > "$T/unitchg/remedies/_test-prefixed.sh"
 printf '# a suite discovered by a python prefix glob\n' > "$T/unitchg/tools/test_prefixed.py"
+# .claude/commands/*.md is discovered a third way: the Claude Code harness
+# lists the directory to find skills, never grepping the tree for the
+# filename. Measured live on hf7y/senechal#973's PR: triage-run.md ranked as
+# an unnamed candidate alongside the prefix-glob suites above (hf7y/etalon#52).
+mkdir -p "$T/unitchg/.claude/commands"
+printf '# A skill\n\nDoes a thing.\nMore prose than one line.\n' > "$T/unitchg/.claude/commands/triage-run.md"
 G "$T/unitchg" add -A; G "$T/unitchg" commit -qm "candidates fixture"
 RUN_OUT="$(cd "$T/unitchg" && MARKDOWN_COST_RATCHET="$T/unitchg/.r" "$SCRIPT" --census 2>&1)"
 has   "C1 the directive prints where to look, not only how many"  "$RUN_OUT" "WHERE TO LOOK"
@@ -354,6 +360,7 @@ hasnt "C4 a suite a glob discovers is NEVER a candidate"          "$RUN_OUT" "th
 hasnt "C4a ...nor is one a PREFIX glob discovers (test-*.sh)"     "$RUN_OUT" "test-prefixed.sh"
 hasnt "C4b ...nor an underscore-prefix suite (_test-*.sh)"        "$RUN_OUT" "_test-prefixed.sh"
 hasnt "C4c ...nor a python prefix suite (test_*.py)"              "$RUN_OUT" "test_prefixed.py"
+hasnt "C4d ...nor a skill the harness discovers by directory"     "$RUN_OUT" "triage-run.md"
 has   "C5 the list says it is candidates, not a verdict"          "$RUN_OUT" "CANDIDATE, not a verdict"
 has   "C6 ...and names the failure it exists to prevent"          "$RUN_OUT" "removing the comment"
 
