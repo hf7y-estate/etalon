@@ -61,8 +61,8 @@ answers, and this estate's recorded pathology is the second being reported as
 the first. A guard that cannot tell must exit `EXIT_BLIND`, never `EXIT_OK`.
 
 The numbers are the **verb ladder**'s, decided by Zach 2026-08-18
-(hf7y/realisateur#334) so that guards and the nineteen bashified verbs speak
-one vocabulary:
+(hf7y/realisateur#334) so that guards and the bashified verbs speak one
+vocabulary:
 
 | | name | meaning |
 |---|---|---|

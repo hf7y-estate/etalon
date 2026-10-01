@@ -7,7 +7,7 @@
 # BLIND can never become the same value, since reporting could-not-look as
 # clean is the failure the file exists against.
 #
-# TWO numbers are asserted anyway, D3 and D4. BLIND=6 and REFUSED=7 are what
+# Numbers are asserted anyway, D3 and D4. BLIND=6 and REFUSED=7 are what
 # bashify/skel/lib/verb.sh's verb_blind and verb_refuse exit with, and Zach's
 # 2026-08-18 decision (hf7y/realisateur#334) was precisely that these two
 # vocabularies are one. If a later edit drifts them apart, that decision has

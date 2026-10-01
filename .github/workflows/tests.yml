@@ -1,7 +1,8 @@
 # tests.yml -- etalon's own suites, and its own prose guard turned on itself.
 #
 # This file names NO suite. The runner is a glob, so adding a suite needs no
-# edit here and two concurrent PRs cannot conflict over one region of one file.
+# edit here, and concurrent PRs adding suites never conflict over one region
+# of one file.
 name: tests
 
 on:
