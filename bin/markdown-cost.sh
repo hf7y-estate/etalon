@@ -94,7 +94,7 @@ count_py_docstrings() { # <path> -> docstring prose lines
     # under here (readlink -f $(which awk)), does not implement intervals
     # and matches empty rather than erroring, so the prefix below was never
     # stripped and a prefixed docstring (r""" f""" rb""") was never counted.
-    # Two independent optional letters are the portable equivalent.
+    # Independent optional letter groups are the portable equivalent.
     t = s; sub(/^[A-Za-z]?[A-Za-z]?/, "", t)     # r"""  f"""  rb"""
     if (index(t, "\"\"\"") == 1) q = "\"\"\""
     else if (index(t, "'"'"'") == 1) q = "'"'"'"

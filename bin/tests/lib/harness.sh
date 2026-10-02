@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# tests/lib/harness.sh -- the six lines 51 of 54 suites re-declare, in two
-# whitespace spellings and 18 summary formats. run-suites.sh reads exit codes
+# tests/lib/harness.sh -- the lines most suites re-declare, in differing
+# whitespace spellings and summary formats. run-suites.sh reads exit codes
 # and ignores all of it, which is why it drifted unnoticed.
 #
 #   . "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/lib/harness.sh"
@@ -16,9 +16,9 @@ ok()      { pass=$((pass + 1)); printf '  ok    %s\n' "$1"; }
 bad()     { fail=$((fail + 1)); printf '  FAIL  %s\n' "$1"; [ $# -gt 1 ] && printf '        %s\n' "$2"; return 0; }
 
 eq()    { if [ "$2" = "$3" ]; then ok "$1"; else bad "$1" "want [$3] got [$2]"; fi; }
-# rc is (label, WANT, GOT) -- the order all 54 suites already call it with.
+# rc is (label, WANT, GOT) -- the order every suite already calls it with.
 # eq is (label, GOT, WANT). They disagree, and that is the existing
-# convention, not an improvement to make while converting 51 files.
+# convention, not an improvement to make while converting every suite.
 rc()    { if [ "$2" = "$3" ]; then ok "$1"; else bad "$1" "want exit $2, got $3"; fi; }
 has()   { case "$2" in *"$3"*) ok "$1" ;; *) bad "$1" "missing: $3" ;; esac; }
 hasnt() { case "$2" in *"$3"*) bad "$1" "present but should not be: $3" ;; *) ok "$1" ;; esac; }
