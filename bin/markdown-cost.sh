@@ -54,6 +54,20 @@ prose_lang() { # <path> -> 'h', 'j', 'm', 'p', or empty for a file we do not pri
 
 prose_excluded() { # <path> -> 0 if no rule should grade this file
   case "$1" in residue/*|*/residue/*|canon/*|*/canon/*) return 0 ;; esac
+  prose_vendored_elsewhere "$1" && return 0
+  return 1
+}
+
+VENDOR_HEADER_LINES=20
+prose_vendored_elsewhere() { # <path> -> 0 if the header names both marker and source (hf7y/dcp-gate-site#104)
+  [ -n "$(prose_lang "$1")" ] || return 1
+  [ -f "$1" ] || return 1
+  local head
+  head="$(head -n "$VENDOR_HEADER_LINES" -- "$1" 2>/dev/null)"
+  case "$head" in
+    *'VENDORED.'*'source repo:'*)             return 0 ;;
+    *'CANONICAL COPY LIVES AT'*'canonical:'*) return 0 ;;
+  esac
   return 1
 }
 
