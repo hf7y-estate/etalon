@@ -94,15 +94,11 @@
 # project, which is what Law 3 forbids." Merging it verbatim would propagate a
 # violation of this runtime's own stated law into every repo that sources it.
 #
-#   gardien's `bin/garde` calls it at 4 sites, so GARDIEN CANNOT BE DE-FORKED
-#   onto this runtime until that is resolved, and the drift guard reports it
-#   as a finding rather than exempting it. The fix is not mechanical: the
-#   function's second argument is a free-text prompt, while `basheur run
-#   --summon <contract>` takes a CONTRACT NAME, so all four call sites change
-#   shape. That is its own piece of work.
-#
-#   A guard that quietly exempted gardien would be worse than the fork: the
-#   fork is at least visible.
+#   RESOLVED. gardien removed its last `verb_gap_or_summon` call site (`media
+#   dedup`, routed through `basheur run media-dedup` instead) the same day
+#   this file was first taken onto gardien's `bashified` branch, hours before
+#   -- so gardien has carried zero calls to it since, and its copy is
+#   byte-identical to this one (hf7y/gardien#6, closed).
 
 set -uo pipefail
 
