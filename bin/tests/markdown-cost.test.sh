@@ -294,6 +294,44 @@ RUN_OUT="$(cd "$T/reaptmpl" && MARKDOWN_COST_RATCHET="$TR5" "$SCRIPT" --census 2
 rc  "T5 removing it exits 0 even while another document grows" 0 "$RUN_RC"
 has "T5 and the tree is one file lighter" "$RUN_OUT" "1 file(s) below the baseline"
 
+echo "-- X. an extensionless file is priced by its shebang (#11, #18)"
+newrepo bare
+mkdir -p "$T/bare/bin"
+TRX="$T/bare/.r"
+censx() { rm -f "$TRX"; G "$T/bare" add -A; (cd "$T/bare" && MARKDOWN_COST_RATCHET="$TRX" "$SCRIPT" --accept 2>&1); }
+has "X0 the seeded tree holds only CHANGES.md" "$(censx)" "1 prose-bearing file(s)"
+
+{ printf '#!/usr/bin/env bash\n'; for i in $(seq 1 6); do printf '# consigne %d\n' "$i"; done
+  printf 'echo hi\n'; } > "$T/bare/bin/consigne"
+has "X1 a bash verb with no extension is priced as shell" "$(censx)" "2 prose-bearing file(s)"
+
+{ printf '#!/bin/sh -e\n# fonde\necho hi\n'; } > "$T/bare/bin/fonde"
+has "X2 a #!/bin/sh verb is priced as shell"              "$(censx)" "3 prose-bearing file(s)"
+
+{ printf '#!/usr/bin/env python3\n"""A docstring line."""\nx = 1\n'; } > "$T/bare/bin/glane"
+has "X3 a python verb is priced as python"                "$(censx)" "4 prose-bearing file(s)"
+
+lines 9 "$T/bare/ROSTER" 'a row with no shebang'
+has "X4 a bare file with no shebang is priced as nothing" "$(censx)" "4 prose-bearing file(s)"
+
+{ printf '#!/usr/bin/env bash\n# looks like a verb\necho hi\n'; } > "$T/bare/bin/tool.template"
+has "X5 a bare foo.template is still not guessed at"      "$(censx)" "4 prose-bearing file(s)"
+
+{ printf '#!/usr/bin/env zsh\n# not a language this prices\n'; } > "$T/bare/bin/zfoo"
+has "X6 a shebang naming no priced language is nothing"   "$(censx)" "4 prose-bearing file(s)"
+
+# X7. The reap #11 measured: cutting comment lines out of a bare verb that
+# survives must pay for a new document elsewhere, where before it paid zero.
+G "$T/bare" commit -qm verbs
+G "$T/bare" update-ref refs/remotes/origin/main HEAD
+RUN_OUT="$(cd "$T/bare" && MARKDOWN_COST_RATCHET="$TRX" "$SCRIPT" --accept 2>&1)"
+printf '#!/usr/bin/env bash\n# consigne 1\necho hi\n' > "$T/bare/bin/consigne"
+lines 2 "$T/bare/NEW.md" 'a new document'
+G "$T/bare" add -A
+RUN_OUT="$(cd "$T/bare" && MARKDOWN_COST_RATCHET="$TRX" "$SCRIPT" --census 2>&1)"; RUN_RC=$?
+rc  "X7 reaping 5 lines from a bare verb pays for a 2-line document" 0 "$RUN_RC"
+has "X7 and says it was paid" "$RUN_OUT" "PAID [prose-ratchet]"
+
 echo "-- R. research/ and DESIGN-NOTES.md are measured-finding records, not priced (hf7y/chezz#89, #100)"
 newrepo excluded
 mkdir -p "$T/excluded/research/engine" "$T/excluded/nested/research"
