@@ -54,6 +54,12 @@ prose_lang() { # <path> -> 'h', 'j', 'm', 'p', or empty for a file we do not pri
 
 prose_excluded() { # <path> -> 0 if no rule should grade this file
   case "$1" in residue/*|*/residue/*|canon/*|*/canon/*) return 0 ;; esac
+  # research/ is a repo's own measured-finding record (hf7y/chezz#89, #100):
+  # a doc that reports what was found, not a mechanism, and the census would
+  # otherwise price every finding as growth with no way to pay it off short of
+  # deleting the finding. DESIGN-NOTES.md is the same shape one level up -- a
+  # single durable decision record a repo is expected to keep appending to.
+  case "$1" in research/*|*/research/*|DESIGN-NOTES.md) return 0 ;; esac
   return 1
 }
 
