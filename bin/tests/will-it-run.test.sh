@@ -54,8 +54,7 @@ issue() { # <repo> <n> <state> <ms-or-null> <label-or-empty>
     "$n" "$state" "$labels_json" "$ms_json" > "$STUB/issue-$repo-$n.json"
 }
 
-issue proj  9  OPEN   5    first
-issue proj  10 OPEN   5    first
+issue proj  9  OPEN   5    ''
 issue proj  12 OPEN   5    ''
 issue proj  20 CLOSED 5    ''
 issue proj  30 OPEN   5    needs-host
@@ -68,10 +67,9 @@ issue proj2 50 OPEN   null ''
 # proving the extracted predicate -- not a hand count -- did the filtering.
 cat > "$STUB/queue-proj.json" <<'EOF'
 [
-  {"number":9,"title":"a","milestone":{"number":5,"title":"m","dueOn":null},"labels":[{"id":"L1","name":"first"}]},
-  {"number":10,"title":"b","milestone":{"number":5,"title":"m","dueOn":null},"labels":[{"id":"L1","name":"first"}]},
-  {"number":12,"title":"c","milestone":{"number":5,"title":"m","dueOn":null},"labels":[]},
-  {"number":40,"title":"d","milestone":null,"labels":[]}
+  {"number":9,"title":"a","milestone":{"number":5,"title":"m","dueOn":null}},
+  {"number":12,"title":"c","milestone":{"number":5,"title":"m","dueOn":null}},
+  {"number":40,"title":"d","milestone":null}
 ]
 EOF
 
@@ -123,18 +121,14 @@ run() {
 
 echo "will-it-run.test.sh"
 
-section "A. RUNS, and reports a first-label position"
+section "A. RUNS -- no rank, just queue membership"
 run proj 9
-rc  "A1 the lowest first-labelled issue exits 0"   0 "$RUN_RC"
+rc  "A1 a runnable issue exits 0"                  0 "$RUN_RC"
 has "A2 and says RUNS"                             "$RUN_OUT" "RUNS"
-has "A3 reporting first in queue"                  "$RUN_OUT" "first in queue"
-run proj 10
-rc  "A4 the second first-labelled issue exits 0"   0 "$RUN_RC"
-has "A5 reporting its rank"                        "$RUN_OUT" "2nd of 2 first-labelled issues"
+has "A3 and is in the queue"                       "$RUN_OUT" "is in the queue"
 run proj 12
-rc  "A6 a runnable issue with no first label exits 0" 0 "$RUN_RC"
-has "A7 reporting it as unordered"                 "$RUN_OUT" "unordered, 2 other runnable issues"
-has "A8 the dropped no-milestone issue does not inflate the queue" "$RUN_OUT" "queue of 3"
+rc  "A4 another runnable issue exits 0"            0 "$RUN_RC"
+has "A5 the dropped no-milestone issue does not inflate the count" "$RUN_OUT" "2 runnable issues"
 
 section "B. an issue in no open milestone"
 run proj 40

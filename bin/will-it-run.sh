@@ -8,10 +8,11 @@
 # copy of it kept here. This fetches that script's text at call time and
 # extracts its literal gh/jq fragments instead of re-deriving the predicate
 # by hand, so a predicate edit there changes what this reports on the very
-# next run instead of silently drifting out of sync with it. The `first`
-# queue is ONLY the issues already in the milestone-filtered queue -- an
-# issue carrying `first` that is itself excluded (closed, wrong milestone,
-# needs-host) is not "first", it WILL NOT RUN, same as any other exclusion.
+# next run instead of silently drifting out of sync with it. There is no
+# ordering left to report: realisateur#1420 (2026-10-03) deleted the `first`
+# label, so the queue is exactly the three checks below -- open, in an open
+# milestone, neither needs-host nor needs-human -- and order is whatever
+# `nightly.sh --send 1 repo#n ...` is told, which skips the queue entirely.
 
 set -uo pipefail
 
@@ -39,15 +40,6 @@ case "$REPO" in ''|*[!A-Za-z0-9._-]*) die2 "repo name looks wrong: '$REPO'" ;; e
 
 GH="${WILL_IT_RUN_GH:-gh}"
 sq="'"
-
-ordinal() { # <n> -> 1st, 2nd, 3rd, 4th, 11th, ...
-  local n="$1" suf=th
-  case $((n % 100)) in
-    11|12|13) ;;
-    *) case $((n % 10)) in 1) suf=st ;; 2) suf=nd ;; 3) suf=rd ;; esac ;;
-  esac
-  printf '%d%s' "$n" "$suf"
-}
 
 # run-agent.sh, for the default turns it hands the brief and to confirm its
 # argument order has not changed shape under this.
@@ -143,10 +135,11 @@ case "$labels" in *needs-host*) not_run "needs-host" ;; esac
 case "$labels" in *needs-human*) not_run "needs-human" ;; esac
 [ "$state" = OPEN ] || not_run "closed"
 
-# RUNS. Its place is the `first` label, lowest number first; everything else
-# is unordered within the rest of the queue.
+# RUNS. There is no rank to report any more (realisateur#1420 deleted the
+# `first` label) -- just confirm the dispatcher's own queue listing (capped
+# at 200 open issues, same as nightly.sh) actually contains this issue.
 queue_json="$("$GH" issue list --repo "$issue_repo_path" --state open --limit 200 \
-    --search "$search_str" --json number,title,milestone,labels 2>/dev/null \
+    --search "$search_str" --json number,title,milestone 2>/dev/null \
   | jq --argjson ms "$ms_open" "$list_jq")"
 [ -n "$queue_json" ] || dieblind "cannot read hf7y-estate/$REPO's queue"
 
@@ -154,27 +147,6 @@ in_queue="$(printf '%s' "$queue_json" | jq --argjson n "$N" 'any(.[]; .number ==
 [ "$in_queue" = true ] || dieblind "hf7y-estate/$REPO#$N passed every check but the dispatchers own queue listing (capped at 200 open issues) does not contain it"
 
 total="$(printf '%s' "$queue_json" | jq 'length')"
-first_nums="$(printf '%s' "$queue_json" | jq -r '[.[] | select((.labels // []) | any(.name == "first")) | .number] | sort | .[]')"
-
-first_count=0
-rank=0
-while IFS= read -r num; do
-  [ -n "$num" ] || continue
-  first_count=$((first_count + 1))
-  [ "$num" = "$N" ] && rank=$first_count
-done <<<"$first_nums"
-
-if [ "$rank" -gt 0 ]; then
-  if [ "$rank" -eq 1 ]; then
-    position='first in queue'
-  else
-    position="$(ordinal "$rank") of $first_count first-labelled issues"
-  fi
-else
-  m=$((total - 1))
-  plural=s; [ "$m" -eq 1 ] && plural=''
-  position="unordered, $m other runnable issue$plural"
-fi
-
-printf 'RUNS -- hf7y-estate/%s#%s is %s (queue of %s)\n' "$REPO" "$N" "$position" "$total"
+plural=s; [ "$total" -eq 1 ] && plural=''
+printf 'RUNS -- hf7y-estate/%s#%s is in the queue (%s runnable issue%s)\n' "$REPO" "$N" "$total" "$plural"
 exit "$EXIT_OK"
