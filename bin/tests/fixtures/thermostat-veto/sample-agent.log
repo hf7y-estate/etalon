@@ -1,0 +1,3 @@
+=== result pr=101 repo=hf7y-estate/etalon turns=42 cost=1.23 tests=pass
+=== result pr=102 repo=hf7y-estate/etalon turns=7 cost=0.31 tests=fail
+=== result pr=103 repo=hf7y-estate/etalon turns=3 cost=0.05
