@@ -314,6 +314,14 @@ mkdir -p "$T/excluded/vendor"
 lines 5 "$T/excluded/vendor/DESIGN-NOTES.md" 'a nested copy, not the repo record'
 has "R4 only the TOP-LEVEL DESIGN-NOTES.md is exempt, a nested one is priced" "$(censE)" "2 prose-bearing file(s)"
 
+echo "-- R(reports). reports/ is a regenerated data report, not priced (hf7y/american-cycle#232)"
+mkdir -p "$T/excluded/reports" "$T/excluded/nested/reports"
+lines 90 "$T/excluded/reports/suite-baseline.md" 'a regenerated report line'
+has "R5 a top-level reports/ file is not priced"   "$(censE)" "2 prose-bearing file(s)"
+
+lines 90 "$T/excluded/nested/reports/suite-baseline.md" 'a nested regenerated report line'
+has "R6 reports/ is excluded at any depth"         "$(censE)" "2 prose-bearing file(s)"
+
 echo "-- U. a unit change re-bases once, and pays for nothing"
 newrepo unitchg
 mkdir -p "$T/unitchg/lib"

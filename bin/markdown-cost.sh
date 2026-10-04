@@ -60,6 +60,11 @@ prose_excluded() { # <path> -> 0 if no rule should grade this file
   # deleting the finding. DESIGN-NOTES.md is the same shape one level up -- a
   # single durable decision record a repo is expected to keep appending to.
   case "$1" in research/*|*/research/*|DESIGN-NOTES.md) return 0 ;; esac
+  # reports/ is the same shape one level further: a tracked, periodically
+  # REGENERATED data report (hf7y/american-cycle#232), not hand-authored prose.
+  # A full regeneration after an upstream change can rewrite most of the file
+  # on values alone, with no way to pay that off short of not regenerating it.
+  case "$1" in reports/*|*/reports/*) return 0 ;; esac
   return 1
 }
 
