@@ -53,6 +53,18 @@ jobs:
       - name: A new mechanism must be paid for
         run: MECHANISM_BUDGET_RATCHET="$PWD/.mechanism-ratchet" bash bin/mechanism-budget.sh --repo .
 
+  # The guard measures etalon too, same as prose above.
+  path-existence:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Make origin/main resolvable
+        run: git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+      - name: A cited path must exist in the HEAD tree or the merge base
+        run: bash bin/path-existence-lint.sh
+
   shellcheck:
     runs-on: ubuntu-latest
     steps:
