@@ -6,10 +6,10 @@
 # GATE: a backticked path cited in a tracked .md file, or in a commit message
 # this branch adds, must exist in the HEAD tree or the merge-base tree
 # (origin/main). Neither means the prose names a script, unit or path that is
-# not there -- hf7y/etalon#31, three live instances found in hf7y/crt in one
-# session: a commit message describing files a fork reconciliation dropped, a
-# doc calling a retired systemd unit "the only working path today", and a
-# doc's "still open" list naming services that exist nowhere in that repo.
+# not there -- hf7y/etalon#31, found live in hf7y/crt: a commit message
+# describing files a fork reconciliation dropped, a doc calling a retired
+# systemd unit "the only working path today", and a doc's "still open" list
+# naming services that exist nowhere in that repo.
 #
 # TRAPS:
 #   1. A citation inside a ``` fence records what output ONCE was, not a live
@@ -117,8 +117,8 @@ mapfile -d '' HEAD_TREE < <(git ls-files -z) || dieblind "cannot list tracked fi
 
 mapfile -d '' MD_FILES < <(git ls-files -z -- '*.md' '*.markdown') || dieblind "cannot list markdown files"
 
-# source<TAB>candidate, deduplicated by the pair so one citation in two docs
-# is not reported twice for the same reason.
+# source<TAB>candidate, deduplicated by the pair so the same citation repeated
+# across docs is not reported twice for the same reason.
 RAW=''
 for f in "${MD_FILES[@]}"; do
   [ -f "$f" ] || continue
