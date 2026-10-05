@@ -101,4 +101,15 @@ G selfscan add -A; G selfscan commit -qm copied
 run selfscan --accept
 has "F1 the two guards contribute nothing"        "$RUN_OUT" "baseline is now 0 line(s)"
 
+section "G. a stop word exempts the counted word, not the line (#4)"
+newrepo stopword
+printf '# main had gained 235 lines since it was cut\n# the 3 of us agree\n# 2 is less than 3\n# see #48 carries it\nexit 0\n' > "$T/stopword/s.sh"
+G stopword add -A; G stopword commit -qm s
+run stopword --accept
+has "G1 a count beside an unrelated stop word is found" "$RUN_OUT" "baseline is now 1 line(s)"
+run stopword
+has "G2 and it is the counted line"               "$RUN_OUT" "s.sh:1: [count]"
+hasnt "G3 a stop word in the counted slot is not" "$RUN_OUT" "s.sh:2:"
+hasnt "G4 nor an issue number"                    "$RUN_OUT" "s.sh:4:"
+
 summary

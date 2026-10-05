@@ -5,7 +5,7 @@
 # RUNNER: bin/tests/credential-wire-check.test.sh only, via
 # .github/workflows/tests.yml's suites job -- NOT wired into guard.yml. This
 # guard reads a live account's OWN git config, not a checked-out repo's tree,
-# so it cannot run the way etalon's other three guards do (checkout-only, no
+# so it cannot run the way etalon's other guards do (checkout-only, no
 # credential, no host). It is meant to run WHERE the account lives -- a
 # self-dev's own health-check tick, or by hand -- with the verb `demande`
 # already on PATH there. See the PR that added this file for what is and is

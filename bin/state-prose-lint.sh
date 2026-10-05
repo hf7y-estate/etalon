@@ -37,8 +37,20 @@ BEGIN {
   # so QTY missed a counted plural separated from its number by one or
   # more intervening words. The optional groups below, written out
   # explicitly rather than as a POSIX interval, are the portable fix.
-  QTY = "(^|[^a-z0-9_-])(two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|hundred|[0-9]+)[ -]([a-z][a-z-]*[ -])?([a-z][a-z-]*[ -])?[a-z][a-z-]*s([^a-z]|$)"
-  QTY_STOP = "(^|[^a-z])(is|was|has|as|this|thus|its|us|does|goes|less|else|yes|plus|across|unless|always|versus|status|series|means|says|gives|takes|makes|needs|reads|writes|exists|runs|does|its)([^a-z]|$)"
+  QTY = "(^|[^a-z0-9_#-])(two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|hundred|[0-9]+)[ -]([a-z][a-z-]*[ -])?([a-z][a-z-]*[ -])?[a-z][a-z-]*s([^a-z]|$)"
+  # A stop word exempts only the WORD in the counted slot, never the whole
+  # line: a counted plural beside an unrelated "was" is still a count (#4).
+  split("is was has as this thus its us does goes less else yes plus across unless always versus status series means says gives takes makes needs reads writes exists runs", sw, " ")
+  for (i in sw) STOP[sw[i]] = 1
+}
+function counted(s,   m, n, w, k) { # 1 if some QTY match counts a non-stop plural
+  while (match(s, QTY)) {
+    m = substr(s, RSTART, RLENGTH)
+    n = split(m, w, /[^a-z0-9]+/)
+    for (k = 1; k <= n; k++) if (w[k] ~ /s$/ && !(w[k] in STOP)) return 1
+    s = substr(s, RSTART + RLENGTH - 1)
+  }
+  return 0
 }
 function lang(f) {
   if (f ~ /\.(md|markdown)$/)          return "m"
@@ -75,7 +87,7 @@ FNR == 1 { L = lang(FILENAME); fence = 0 }
   hit = ""
   if (s ~ /(^|[^0-9])(19|20)[0-9][0-9]-[0-9][0-9]-[0-9][0-9]([^0-9]|$)/) hit = "date"
   else if (s ~ /(^| )as of( |$)/) hit = "as-of"
-  else if (s ~ QTY && s !~ QTY_STOP) hit = "count"
+  else if (counted(s)) hit = "count"
   if (hit == "") next
   printf "%s:%d: [%s] %s\n", FILENAME, FNR, hit, substr(line, 1, 90)
 }

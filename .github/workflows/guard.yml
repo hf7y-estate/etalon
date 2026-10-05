@@ -1,6 +1,6 @@
 # guard.yml -- the prose guard, called by every repo in the estate.
 #
-# THIS FILE IS THE ONE COPY. A calling repo carries six lines and no script:
+# THIS FILE IS THE ONE COPY. A calling repo carries only the lines below and no script:
 #
 #   name: prose
 #   on: [pull_request]
@@ -16,7 +16,7 @@
 # WHY A PUBLIC REPO. A reusable workflow's FILE travels to the caller, but the
 # repo holding it is never checked out -- so the guard script had to be
 # fetchable, and `GITHUB_TOKEN` is scoped to the CALLING repo only. The
-# alternative was distributing a cross-repo credential to fifteen repos, which
+# alternative was distributing a cross-repo credential to every calling repo, which
 # is the credential sprawl hf7y/realisateur#171 exists to reduce. etalon is
 # public and holds a lint, its tests and an exit vocabulary -- no host layout,
 # no account names, no paths.

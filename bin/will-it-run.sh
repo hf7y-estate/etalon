@@ -127,7 +127,7 @@ not_run() { # <reason>
 }
 
 # The order below is the one #80 specifies: repo, then the milestone
-# questions, then the two labels, then closed -- not the order nightly.sh's
+# questions, then the labels, then closed -- not the order nightly.sh's
 # own `--state open` + `--search` happen to apply the same checks in.
 [ "$ms_open" != '[]' ] || not_run "no open milestone in hf7y-estate/$REPO"
 [ "$in_ms" = true ] || not_run "issue not in an open milestone"
@@ -136,8 +136,8 @@ case "$labels" in *needs-human*) not_run "needs-human" ;; esac
 [ "$state" = OPEN ] || not_run "closed"
 
 # RUNS. There is no rank to report any more (realisateur#1420 deleted the
-# `first` label) -- just confirm the dispatcher's own queue listing (capped
-# at 200 open issues, same as nightly.sh) actually contains this issue.
+# `first` label) -- just confirm the dispatcher's own queue listing (which reads
+# at most 200 open issues, as nightly.sh does) actually contains this issue.
 queue_json="$("$GH" issue list --repo "$issue_repo_path" --state open --limit 200 \
     --search "$search_str" --json number,title,milestone 2>/dev/null \
   | jq --argjson ms "$ms_open" "$list_jq")"

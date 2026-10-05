@@ -1,6 +1,6 @@
 # étalon
 
-The reference standard this estate measures itself against. Two things live
+The reference standard this estate measures itself against. These live
 here, and they live **only** here:
 
 - **`bin/markdown-cost.sh`** — the prose guard. Prices what a diff adds and
@@ -40,7 +40,7 @@ by reference: no port step to forget, no drift to detect.
 A reusable workflow's *file* travels to the caller, but the repo holding it is
 never checked out — so the script has to be fetchable, and `GITHUB_TOKEN` is
 scoped to the calling repo. The alternative was distributing a cross-repo
-credential to fifteen repos, which is the sprawl hf7y/realisateur#171 exists to
+credential to every calling repo, which is the sprawl hf7y/realisateur#171 exists to
 reduce.
 
 This repo holds a lint, its tests, and a list of integers. No host layout, no
