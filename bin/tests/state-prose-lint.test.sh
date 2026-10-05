@@ -101,4 +101,19 @@ G selfscan add -A; G selfscan commit -qm copied
 run selfscan --accept
 has "F1 the two guards contribute nothing"        "$RUN_OUT" "baseline is now 0 line(s)"
 
+section "G. a file with no extension is still read"
+newrepo noext
+mkdir -p "$T/noext/schedule" "$T/noext/bin"
+printf '# parked on arrival, probed 2026-09-02\nalpha live\n' > "$T/noext/schedule/ROSTER"
+printf '#!/usr/bin/env node\n// the queue held four accounts on 2026-09-02\n' > "$T/noext/bin/tally"
+printf 'Released 2026-09-02 with four files changed.\n' > "$T/noext/LICENSE"
+G noext add -A; G noext commit -qm noext
+run noext --accept
+has "G1 the hash comment and the node comment count, the plain text does not" "$RUN_OUT" "baseline is now 2 line(s)"
+G noext add -A; G noext commit -qm ratchet
+run noext
+has "G2 the extensionless state file is named"   "$RUN_OUT" "schedule/ROSTER:1:"
+has "G3 so is the extensionless node verb"       "$RUN_OUT" "bin/tally:2:"
+hasnt "G4 a line that is not a comment is not"   "$RUN_OUT" "LICENSE:"
+
 summary
