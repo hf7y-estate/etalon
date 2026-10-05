@@ -322,6 +322,29 @@ has "R5 a top-level reports/ file is not priced"   "$(censE)" "2 prose-bearing f
 lines 90 "$T/excluded/nested/reports/suite-baseline.md" 'a nested regenerated report line'
 has "R6 reports/ is excluded at any depth"         "$(censE)" "2 prose-bearing file(s)"
 
+echo "-- V. a vendored/canonical-elsewhere file is not this repo's prose (hf7y/dcp-gate-site#104)"
+mkdir -p "$T/excluded/lib"
+{ printf '#!/usr/bin/env bash\n'
+  printf '# VENDORED. Do not edit here without recording the edit below.\n'
+  printf '#   source repo:   ~/Documents/Projects/upstream\n'
+  printf '#   source file:   tool.sh\n'
+  for i in $(seq 1 30); do printf '# a copied explanation %d\n' "$i"; done; } > "$T/excluded/lib/vendored.sh"
+has "V1 a header naming VENDORED. + source repo: is not priced" "$(censE)" "2 prose-bearing file(s)"
+
+{ printf '#!/usr/bin/env bash\n'
+  printf '# CANONICAL COPY LIVES AT some other repo.\n'
+  printf '#   canonical:   ~/Documents/Projects/upstream/tool2.sh\n'
+  for i in $(seq 1 30); do printf '# a copied explanation %d\n' "$i"; done; } > "$T/excluded/lib/canonical.sh"
+has "V2 a header naming CANONICAL COPY LIVES AT + canonical: is not priced" "$(censE)" "2 prose-bearing file(s)"
+
+# V3. The word alone, with no paired source line, is not the convention --
+# it must not become a way to exempt ordinary prose by typing a buzzword.
+{ printf '#!/usr/bin/env bash\n'
+  printf '# VENDORED, in spirit if not in name.\n'
+  for i in $(seq 1 30); do printf '# a copied explanation %d\n' "$i"; done; } > "$T/excluded/lib/halfvendored.sh"
+has "V3 the word alone, with no source repo: line, is still priced" "$(censE)" "3 prose-bearing file(s)"
+rm -f "$T/excluded/lib/halfvendored.sh"
+
 echo "-- U. a unit change re-bases once, and pays for nothing"
 newrepo unitchg
 mkdir -p "$T/unitchg/lib"
