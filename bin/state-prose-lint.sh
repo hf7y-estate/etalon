@@ -44,9 +44,16 @@ function lang(f) {
   if (f ~ /\.(md|markdown)$/)          return "m"
   if (f ~ /\.(sh|bash|conf|ya?ml|py)$/) return "h"
   if (f ~ /\.(mjs|js)$/)                return "j"
+  # No extension at all (a ROSTER, a verb under bin/) is read as a
+  # hash-commented file: only its # lines are considered, so a file that is
+  # not one contributes nothing. A node shebang switches it to // comments.
+  if (f !~ /\.[^\/]*$/)                 return "x"
   return ""
 }
-FNR == 1 { L = lang(FILENAME); fence = 0 }
+FNR == 1 {
+  L = lang(FILENAME); fence = 0
+  if (L == "x") L = ($0 ~ /^#!.*node/) ? "j" : "h"
+}
 {
   if (L == "") next
   line = $0
