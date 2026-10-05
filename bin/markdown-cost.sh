@@ -65,6 +65,20 @@ prose_excluded() { # <path> -> 0 if no rule should grade this file
   # A full regeneration after an upstream change can rewrite most of the file
   # on values alone, with no way to pay that off short of not regenerating it.
   case "$1" in reports/*|*/reports/*) return 0 ;; esac
+  prose_vendored_elsewhere "$1" && return 0
+  return 1
+}
+
+VENDOR_HEADER_LINES=20
+prose_vendored_elsewhere() { # <path> -> 0 if the header names both marker and source (hf7y/dcp-gate-site#104)
+  [ -n "$(prose_lang "$1")" ] || return 1
+  [ -f "$1" ] || return 1
+  local head
+  head="$(head -n "$VENDOR_HEADER_LINES" -- "$1" 2>/dev/null)"
+  case "$head" in
+    *'VENDORED.'*'source repo:'*)             return 0 ;;
+    *'CANONICAL COPY LIVES AT'*'canonical:'*) return 0 ;;
+  esac
   return 1
 }
 

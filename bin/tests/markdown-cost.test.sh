@@ -55,6 +55,30 @@ mkdir -p "$T/notarepo"
 RUN_OUT="$(cd "$T/notarepo" && "$SCRIPT" --census 2>&1)"; RUN_RC=$?
 rc  "E3 outside a git repository exits 2" 2 "$RUN_RC"
 
+newrepo vendored
+G "$T/vendored" checkout -q -b work
+{ printf '#!/usr/bin/env bash\n'
+  printf '# VENDORED. Do not edit here without recording the edit below.\n'
+  printf '#   source repo:   ~/Documents/Projects/upstream\n'
+  printf '#   source file:   tool.sh\n'
+  for i in $(seq 1 200); do printf '# a copied explanation %d\n' "$i"; done; } > "$T/vendored/tool.sh"
+G "$T/vendored" add -A
+G "$T/vendored" commit -qm ported
+run vendored env
+rc  "F5 a header naming a source repo exits 0" 0 "$RUN_RC"
+hasnt "F5 and raises no comment FLAG" "$RUN_OUT" "FLAG [comment-ratio]"
+
+newrepo halfvendored
+G "$T/halfvendored" checkout -q -b work
+{ printf '#!/usr/bin/env bash\n'
+  printf '# VENDORED, in spirit if not in name.\n'
+  for i in $(seq 1 200); do printf '# a copied explanation %d\n' "$i"; done; } > "$T/halfvendored/tool.sh"
+G "$T/halfvendored" add -A
+G "$T/halfvendored" commit -qm ported
+run halfvendored env
+rc  "F6 the word alone, with no source repo: line, still FLAGs" 1 "$RUN_RC"
+has "F6 and it is the comment-ratio flag" "$RUN_OUT" "FLAG [comment-ratio]"
+
 echo "-- G. the tree ratchet"
 
 newrepo ratchet
@@ -431,5 +455,17 @@ printf '# markdown-cost.ratchet\n# unit: 4\n# accepted whenever\n1\n' > "$T/unit
 RUN_OUT="$(cd "$T/unitchg" && MARKDOWN_COST_RATCHET="$T/unitchg/.r" "$SCRIPT" --accept 2>&1)"; RUN_RC=$?
 rc  "U6 same-unit raise is still REFUSED"            1 "$RUN_RC"
 has "U7 and says so"                                 "$RUN_OUT" "REFUSED"
+
+echo "-- V. a vendored file is exempt from the tree census too (hf7y/dcp-gate-site#104)"
+newrepo vcensus
+mkdir -p "$T/vcensus/lib"
+{ printf '#!/usr/bin/env bash\n'
+  printf '# VENDORED. Do not edit here without recording the edit below.\n'
+  printf '#   source repo:   ~/Documents/Projects/upstream\n'
+  for i in $(seq 1 30); do printf '# a copied explanation %d\n' "$i"; done; } > "$T/vcensus/lib/ported.sh"
+G "$T/vcensus" add -A
+G "$T/vcensus" commit -qm "add own + vendored code"
+RUN_OUT="$(cd "$T/vcensus" && MARKDOWN_COST_RATCHET="$T/vcensus/.r" "$SCRIPT" --accept 2>&1)"
+has "V1 --accept does not count the vendored file's comments" "$RUN_OUT" "baseline is now 1 prose line(s)"
 
 summary
