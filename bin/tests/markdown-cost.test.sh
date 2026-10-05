@@ -56,6 +56,8 @@ RUN_OUT="$(cd "$T/notarepo" && "$SCRIPT" --census 2>&1)"; RUN_RC=$?
 rc  "E3 outside a git repository exits 2" 2 "$RUN_RC"
 
 newrepo vendored
+VR="$T/vendored/.r"
+(cd "$T/vendored" && MARKDOWN_COST_RATCHET="$VR" "$SCRIPT" --accept >/dev/null 2>&1)
 G "$T/vendored" checkout -q -b work
 { printf '#!/usr/bin/env bash\n'
   printf '# VENDORED. Do not edit here without recording the edit below.\n'
@@ -64,20 +66,22 @@ G "$T/vendored" checkout -q -b work
   for i in $(seq 1 200); do printf '# a copied explanation %d\n' "$i"; done; } > "$T/vendored/tool.sh"
 G "$T/vendored" add -A
 G "$T/vendored" commit -qm ported
-run vendored env
+RUN_OUT="$(cd "$T/vendored" && MARKDOWN_COST_RATCHET="$VR" "$SCRIPT" --census 2>&1)"; RUN_RC=$?
 rc  "F5 a header naming a source repo exits 0" 0 "$RUN_RC"
-hasnt "F5 and raises no comment FLAG" "$RUN_OUT" "FLAG [comment-ratio]"
+hasnt "F5 and raises no prose-ratchet FLAG" "$RUN_OUT" "FLAG [prose-ratchet]"
 
 newrepo halfvendored
+HR="$T/halfvendored/.r"
+(cd "$T/halfvendored" && MARKDOWN_COST_RATCHET="$HR" "$SCRIPT" --accept >/dev/null 2>&1)
 G "$T/halfvendored" checkout -q -b work
 { printf '#!/usr/bin/env bash\n'
   printf '# VENDORED, in spirit if not in name.\n'
   for i in $(seq 1 200); do printf '# a copied explanation %d\n' "$i"; done; } > "$T/halfvendored/tool.sh"
 G "$T/halfvendored" add -A
 G "$T/halfvendored" commit -qm ported
-run halfvendored env
+RUN_OUT="$(cd "$T/halfvendored" && MARKDOWN_COST_RATCHET="$HR" "$SCRIPT" --census 2>&1)"; RUN_RC=$?
 rc  "F6 the word alone, with no source repo: line, still FLAGs" 1 "$RUN_RC"
-has "F6 and it is the comment-ratio flag" "$RUN_OUT" "FLAG [comment-ratio]"
+has "F6 and it is the prose-ratchet flag" "$RUN_OUT" "FLAG [prose-ratchet]"
 
 echo "-- G. the tree ratchet"
 
@@ -466,6 +470,6 @@ mkdir -p "$T/vcensus/lib"
 G "$T/vcensus" add -A
 G "$T/vcensus" commit -qm "add own + vendored code"
 RUN_OUT="$(cd "$T/vcensus" && MARKDOWN_COST_RATCHET="$T/vcensus/.r" "$SCRIPT" --accept 2>&1)"
-has "V1 --accept does not count the vendored file's comments" "$RUN_OUT" "baseline is now 1 prose line(s)"
+has "V1 --accept does not count the vendored file's comments" "$RUN_OUT" "baseline is now 1 prose-bearing file(s)"
 
 summary
