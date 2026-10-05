@@ -353,6 +353,26 @@ has "U5a it names the routine, not just the deficit"         "$RUN_OUT" "RUN /re
 has "U5b and asks for a file, not a line count"              "$RUN_OUT" "Delete 1 file(s) this estate no longer references"
 has "U5c and points at what nothing reads"                   "$RUN_OUT" "Shaving a comment in a file that survives moves"
 
+echo "-- B. a re-base across units is still held to the merge base (#23)"
+newrepo rebase
+printf '"""Doc."""\n' > "$T/rebase/m.py"
+printf '# markdown-cost.ratchet\n# accepted whenever\n1\n' > "$T/rebase/.r"
+G "$T/rebase" add -A; G "$T/rebase" commit -qm "seed with a unit-1 ratchet"
+G "$T/rebase" update-ref refs/remotes/origin/main main
+G "$T/rebase" checkout -q -b work
+printf '"""Another documented module."""\n' > "$T/rebase/n.py"
+G "$T/rebase" add -A
+(cd "$T/rebase" && MARKDOWN_COST_RATCHET="$T/rebase/.r" "$SCRIPT" --accept >/dev/null 2>&1)
+G "$T/rebase" add -A; G "$T/rebase" commit -qm "add prose and re-base in one go"
+RUN_OUT="$(cd "$T/rebase" && MARKDOWN_COST_RATCHET="$T/rebase/.r" "$SCRIPT" --census 2>&1)"; RUN_RC=$?
+rc  "B1 re-basing does not launder prose the same branch adds" 1 "$RUN_RC"
+has "B2 the floor it is held to is the merge-base tree"        "$RUN_OUT" "RAISES the baseline"
+G "$T/rebase" checkout -q main; G "$T/rebase" checkout -q -b clean
+(cd "$T/rebase" && MARKDOWN_COST_RATCHET="$T/rebase/.r" "$SCRIPT" --accept >/dev/null 2>&1)
+G "$T/rebase" add -A; G "$T/rebase" commit -qm "re-base alone"
+RUN_OUT="$(cd "$T/rebase" && MARKDOWN_COST_RATCHET="$T/rebase/.r" "$SCRIPT" --census 2>&1)"; RUN_RC=$?
+rc  "B3 a re-base that adds nothing still passes" 0 "$RUN_RC"
+
 echo "-- C. the directive names CANDIDATES, not just a quantity (#48)"
 # A number invites the minimum: multiple PRs in one session on
 # hf7y/realisateur paid this bill the cheapest way available -- twice by
