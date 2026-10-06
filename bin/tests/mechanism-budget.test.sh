@@ -72,6 +72,42 @@ has "C5 and invite a lower baseline"          "$RUN_OUT" "run --accept to lock i
 run counting --accept
 has "C6 which --accept records"               "$RUN_OUT" "baseline is now 2 mechanism(s)"
 
+section "E. a transfer is credited, not billed"
+newrepo transfers
+mech transfers bin/tool.sh
+G transfers add -A; G transfers commit -qm base
+run transfers --accept
+has "E1 baseline starts at one"               "$RUN_OUT" "baseline is now 1 mechanism(s)"
+mech transfers bin/received.sh
+printf 'bin/received.sh\tother-repo#1 (deleted bin/received.sh there)\n' > "$T/transfers/.mechanism-transfers"
+G transfers add -A; G transfers commit -qm receive
+run transfers
+rc  "E2 a credited transfer still exits 0"    0 "$RUN_RC"
+has "E3 and says it was credited"             "$RUN_OUT" "1 mechanism(s) credited as transfers-in"
+has "E4 inviting --accept to fold it in"      "$RUN_OUT" "transfer(s) covered the rest"
+mech transfers bin/organic.sh
+G transfers add -A; G transfers commit -qm "also organic"
+run transfers
+rc  "E5 an uncredited add on top still fails" 1 "$RUN_RC"
+has "E6 net of the transfer, not the raw delta" "$RUN_OUT" "adds 1 mechanism(s) over the baseline"
+
+section "F. --accept folds a transfer into the baseline"
+G transfers rm -q bin/organic.sh
+G transfers commit -qm "retire the organic add"
+run transfers --accept
+has "F1 --accept reports the fold"            "$RUN_OUT" "folding in 1 transferred mechanism"
+has "F2 and records the new baseline"         "$RUN_OUT" "baseline is now 2 mechanism(s)"
+run transfers
+rc  "F3 the folded baseline passes cleanly"   0 "$RUN_RC"
+has "F4 with nothing left to credit"          "$RUN_OUT" "delta +0"
+
+section "G. an uncredited raise is still refused"
+mech transfers bin/uncredited.sh
+G transfers add -A; G transfers commit -qm "an organic add, unlisted"
+run transfers --accept
+rc  "G1 --accept REFUSES past the credit"     1 "$RUN_RC"
+has "G2 and names the transfer ledger"        "$RUN_OUT" ".mechanism-transfers"
+
 section "D. it never passes silently"
 run counting --nope
 rc  "D1 an unknown flag is a usage error"     2 "$RUN_RC"

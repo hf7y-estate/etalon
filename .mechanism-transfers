@@ -1,0 +1,7 @@
+# mechanism-transfers -- mechanisms received from elsewhere in the estate,
+# each with its removal there named. mechanism-budget.sh credits these
+# against the ratchet instead of billing them as new: a move is
+# estate-neutral, and the budget's job is to stop growth, not transfers.
+#
+# <path in this repo>	<repo#ref naming the removal>
+bin/credential-wire-check.sh	hf7y/realisateur#1134 (deleted bin/selfdev-credentials.sh there)
