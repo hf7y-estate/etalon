@@ -96,6 +96,12 @@ RUN_OUT="$(cd "$T/ratchet" && "$SCRIPT" --census 2>&1)"; RUN_RC=$?
 rc  "G3b a branch that added a prose file exits 1" 1 "$RUN_RC"
 has "G3b and asks for files, not lines" "$RUN_OUT" "Delete 1 file(s) this estate no longer references"
 hasnt "G3b and never asks for a line count again" "$RUN_OUT" "prose line(s) from OTHER files"
+# G3c/G3d (#21): the diagnosis bug this issue was filed over -- a blocked
+# author needs the merge-base figure and the delta from the check output
+# itself, not a job log, or the visible 0%-diff-ratio check reads as the
+# verdict while this is what actually failed.
+has "G3c the merge-base figure is in the output, not just the FLAG" "$RUN_OUT" "merge base holds 2; this branch is +1 against it"
+has "G3d the directive still names where to reap from, same output" "$RUN_OUT" "WHERE TO LOOK"
 G "$T/ratchet" update-ref -d refs/remotes/origin/main
 G "$T/ratchet" reset -q --soft HEAD~1
 
