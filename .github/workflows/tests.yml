@@ -52,6 +52,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: A new mechanism must be paid for
         run: MECHANISM_BUDGET_RATCHET="$PWD/.mechanism-ratchet" bash bin/mechanism-budget.sh --repo .
+      - name: A built tool must name its caller (etalon#127)
+        run: bash bin/mechanism-budget.sh --repo . --unwired
 
   shellcheck:
     runs-on: ubuntu-latest
