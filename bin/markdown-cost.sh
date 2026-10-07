@@ -90,14 +90,62 @@ prose_vendored_elsewhere() { # <path> -> 0 if the header both claims and names a
 }
 
 # is_comment <lang> <line> -> 0 if this line is prose. Callers skip blanks.
+# j (JS) still matches a LEADING '//'/'/*'/'*' only -- a trailing '//' comment
+# is the same gap closed below for h/p and is not fixed here.
 is_comment() {
   local s="$2"
   s="${s#"${s%%[![:space:]]*}"}"     # strip leading whitespace
   case "$1" in
-    h|p) case "$s" in '#!'*) return 1 ;; '#'*) return 0 ;; esac ;; # '#!' is a directive
     j) case "$s" in '//'*|'/*'*|'*'*) return 0 ;; esac ;;
   esac
   return 1
+}
+
+# hash_comment_lines <path> -> count of lines carrying a REAL '#' comment,
+# leading OR TRAILING. hf7y/etalon#48 (2026-09-23): `bin/repose.sh` rode its
+# entire rationale on a comment trailing `set -uo pipefail`, which a
+# leading-only match never sees -- so the file was never prose-bearing and
+# deleting all 57 lines of it paid nothing. "Move the comment one column
+# right" must not be a free way off the census.
+#
+# A '#' only starts a comment at the START OF A WORD (preceded by whitespace
+# or start-of-line) and outside a quote -- the same rule bash itself uses, and
+# it is what keeps `${f#./}` / `$#` (never preceded by whitespace) from being
+# misread as a comment. Quotes are tracked char-by-char because a '#' inside
+# one, e.g. `echo "a # b"`, is data, not prose.
+hash_comment_lines() { # <path> -> count
+  awk '
+    {
+      line = $0; s = line; sub(/^[ \t]+/, "", s)
+      if (s == "" || substr(s, 1, 2) == "#!") next
+      insq = 0; indq = 0; esc = 0; prevspace = 1; found = 0
+      n = length(line)
+      for (i = 1; i <= n; i++) {
+        c = substr(line, i, 1)
+        if (esc)               { esc = 0; prevspace = 0; continue }
+        if (indq) {
+          if (c == "\\")        { esc = 1; continue }
+          if (c == "\042")      { indq = 0 }
+          prevspace = 0; continue
+        }
+        if (insq) {
+          if (c == "\047")      { insq = 0 }
+          prevspace = 0; continue
+        }
+        if (c == "\\")          { esc = 1; prevspace = 0; continue }
+        if (c == "\042")        { indq = 1; prevspace = 0; continue }
+        if (c == "\047")        { insq = 1; prevspace = 0; continue }
+        if (c == "#") {
+          if (prevspace)        { found = 1; break }
+          prevspace = 0; continue
+        }
+        if (c == " " || c == "\t") { prevspace = 1; continue }
+        prevspace = 0
+      }
+      if (found) n_found++
+    }
+    END { print n_found + 0 }
+  ' "$1"
 }
 
 # --- Python docstrings are prose, and used not to be ------------------------
@@ -155,6 +203,7 @@ RATCHET="${MARKDOWN_COST_RATCHET:-$(dirname "${BASH_SOURCE[0]}")/markdown-cost.r
 #   2  ...and Python docstrings (2026-08-26)
 #   3  ...and files behind a scaffolding suffix (hf7y/etalon#18)
 #   4  PROSE-BEARING FILES, not prose lines
+#   5  ...and a '#' comment TRAILING code, not just leading it (hf7y/etalon#48)
 #
 # WHY THIS EXISTS AT ALL. Unit 2 raised five of six estate repos above their
 # committed floor at once (crt +3278, wtul +1933, senechal +693). The ratchet
@@ -177,7 +226,15 @@ RATCHET="${MARKDOWN_COST_RATCHET:-$(dirname "${BASH_SOURCE[0]}")/markdown-cost.r
 # only one payment: a file stops existing. Shaving is then worth exactly
 # nothing, and the guard can no longer ask for a move that damages the tree.
 # The evidence this was reversed on is in hf7y/realisateur#1142.
-MEASURE_UNIT=4
+#
+# Unit 5 widens what a '#' counts as: previously only a line BEGINNING with
+# one was prose, so a file that carried its entire rationale as a comment
+# trailing a code line (`set -uo pipefail  # ...`) was never prose-bearing and
+# a branch deleting it paid nothing -- found live in hf7y/realisateur#1240,
+# see hf7y/etalon#48. The old baseline answers "how many files have a LEADING
+# '#' comment", which is a smaller count than this unit measures; it is not
+# comparable, so it bumps rather than silently inflating every repo's number.
+MEASURE_UNIT=5
 
 CANDIDATES_MAX="${MARKDOWN_COST_CANDIDATES:-10}"
 
@@ -357,6 +414,11 @@ count_prose() { # <lang> <path> -> prose line count for one file
   if [ "$1" = m ]; then
     # Everything outside a ``` fence. The fence lines themselves are not prose.
     awk '/^[ \t]*```/{fence=!fence; next} {if($0~/^[ \t]*$/)next; if(!fence)n++} END{print n+0}' "$2"
+  elif [ "$1" = h ] || [ "$1" = p ]; then
+    local n
+    n="$(hash_comment_lines "$2")"
+    [ "$1" = p ] && n=$((n + $(count_py_docstrings "$2")))
+    printf '%d' "$n"
   else
     local line s n=0
     while IFS= read -r line || [ -n "$line" ]; do
@@ -364,7 +426,6 @@ count_prose() { # <lang> <path> -> prose line count for one file
       [ -n "$s" ] || continue
       is_comment "$1" "$line" && n=$((n + 1))
     done < "$2"
-    [ "$1" = p ] && n=$((n + $(count_py_docstrings "$2")))
     printf '%d' "$n"
   fi
 }

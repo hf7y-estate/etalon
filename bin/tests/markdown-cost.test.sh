@@ -157,6 +157,37 @@ hasnt "G7 a symlink target already walked once is not priced again through the l
 has "G7 unit 1 is the path that consults the merge base, and both walkers agree there" "$RUN_OUT" "this branch is +0 against it"
 unset MARKDOWN_COST_RATCHET
 
+echo "-- H. a TRAILING '#' comment is prose too (hf7y/etalon#48, unit 5)"
+# The measured defect: bin/repose.sh carried its whole rationale as a comment
+# trailing `set -uo pipefail`, which a leading-only match never sees, so
+# deleting the file paid nothing against the census.
+newrepo trailing
+printf '#!/usr/bin/env bash\nset -uo pipefail  # repose.sh: trailing rationale, not a leading comment\necho hi\n' \
+  > "$T/trailing/repose.sh"
+G "$T/trailing" add -A; G "$T/trailing" commit -qm seed
+RUN_OUT="$(cd "$T/trailing" && MARKDOWN_COST_RATCHET="$T/trailing/.r" "$SCRIPT" --accept 2>&1)"; RUN_RC=$?
+rc  "H1 a file with only a trailing comment is counted at all" 0 "$RUN_RC"
+has "H1 and it is seeded counting it, alongside newrepo's CHANGES.md" "$RUN_OUT" "baseline is now 2 prose-bearing file(s)"
+G "$T/trailing" rm -q repose.sh; G "$T/trailing" commit -qm "delete the only prose-bearing file"
+RUN_OUT="$(cd "$T/trailing" && MARKDOWN_COST_RATCHET="$T/trailing/.r" "$SCRIPT" --census 2>&1)"; RUN_RC=$?
+rc  "H2 deleting it now pays" 0 "$RUN_RC"
+has "H2 and the count actually moves" "$RUN_OUT" "1 prose-bearing file(s), baseline 2"
+has "H2 ...below the baseline, not stuck at it" "$RUN_OUT" "below the baseline"
+
+echo "-- H(quote-safe). a '#' inside a quote, or a parameter expansion, is not a comment"
+# The false-positive this scanner must not introduce: '#' is bash's
+# remove-prefix operator in '${var#pattern}' and never preceded by whitespace
+# there, and '#' inside a string is data a human wrote on purpose.
+newrepo noquote
+printf '#!/usr/bin/env bash\nf="${1#./}"\necho "price is 4#5, not a comment"\nprintf "%%s" "$f"\n' \
+  > "$T/noquote/clean.sh"
+G "$T/noquote" add -A; G "$T/noquote" commit -qm seed
+RUN_OUT="$(cd "$T/noquote" && MARKDOWN_COST_RATCHET="$T/noquote/.r" "$SCRIPT" --accept 2>&1)"; RUN_RC=$?
+rc  "H3 a file with no REAL comment accepts" 0 "$RUN_RC"
+has "H3 only newrepo's CHANGES.md counts, not clean.sh" "$RUN_OUT" "baseline is now 1 prose-bearing file(s)"
+
+unset MARKDOWN_COST_RATCHET
+
 echo
 [ "$fail" -eq 0 ] || exit 1
 
@@ -188,7 +219,7 @@ G "$T/pydoc" add -A
 G "$T/pydoc" commit -qm docstrings
 echo "-- P(census). a docstring reap MOVES the census"
 RUN_OUT="$(cd "$T/pydoc" && MARKDOWN_COST_RATCHET="$T/pydoc/.r" "$SCRIPT" --accept 2>&1)"
-has "P3 --accept seeds and stamps the unit"          "$(cat "$T/pydoc/.r")" "# unit: 4"
+has "P3 --accept seeds and stamps the unit"          "$(cat "$T/pydoc/.r")" "# unit: 5"
 printf '"""One."""\n' > "$T/pydoc/lib/essay.py"
 G "$T/pydoc" add -A; G "$T/pydoc" commit -qm reap
 after="$(cd "$T/pydoc" && MARKDOWN_COST_RATCHET="$T/pydoc/.r" "$SCRIPT" --census 2>&1)"
@@ -363,7 +394,7 @@ G "$T/unitchg" update-ref refs/remotes/origin/main main
 G "$T/unitchg" checkout -q -b work
 RUN_OUT="$(cd "$T/unitchg" && MARKDOWN_COST_RATCHET="$T/unitchg/.r" "$SCRIPT" --census 2>&1)"; RUN_RC=$?
 rc  "U1 a stale-unit baseline does not fail a branch that adds nothing" 0 "$RUN_RC"
-has "U2 it says which unit the old number was in"    "$RUN_OUT" "is unit 1, this guard measures in unit 4"
+has "U2 it says which unit the old number was in"    "$RUN_OUT" "is unit 1, this guard measures in unit 5"
 has "U3 and points at --accept to re-base"           "$RUN_OUT" "re-base"
 # ...and padding the docstring in a file that already counts buys nothing,
 # which under units 1-3 was the whole payment.
@@ -432,7 +463,7 @@ newrepo lines
 printf '#!/usr/bin/env bash\n%s\necho x\n' "$(for i in $(seq 1 40); do printf '# stale line %s\n' "$i"; done)" > "$T/lines/fat.sh"
 G "$T/lines" add -A; G "$T/lines" commit -qm "a file carrying forty lines of prose"
 G "$T/lines" update-ref refs/remotes/origin/main main
-printf '# markdown-cost.ratchet\n# unit: 4\n# accepted whenever\n2\n' > "$T/lines/.r"
+printf '# markdown-cost.ratchet\n# unit: 5\n# accepted whenever\n2\n' > "$T/lines/.r"
 G "$T/lines" checkout -qb reap
 # add a documented file AND reap the fat one's prose: the tree loses lines
 printf '#!/usr/bin/env bash\n# a new file, documented\n# second line of prose\necho y\n' > "$T/lines/new.sh"
@@ -447,7 +478,7 @@ has   "L4 the floor is explicitly NOT lowered by it"       "$RUN_OUT" "does not 
 # ...but a SHAVE cannot pay: trimming a comment off one surviving file while
 # adding a documented one leaves the tree with more prose, not less.
 G "$T/lines" checkout -q main; G "$T/lines" checkout -qb shave
-printf '# markdown-cost.ratchet\n# unit: 4\n# accepted whenever\n2\n' > "$T/lines/.r"
+printf '# markdown-cost.ratchet\n# unit: 5\n# accepted whenever\n2\n' > "$T/lines/.r"
 printf '#!/usr/bin/env bash\n# another new file\n# with two lines of prose\necho y\n' > "$T/lines/new2.sh"
 printf '#!/usr/bin/env bash\n%s\necho x\n' "$(for i in $(seq 1 39); do printf '# stale line %s\n' "$i"; done)" > "$T/lines/fat.sh"
 G "$T/lines" add -A; G "$T/lines" commit -qm "shave one line, add a file"
@@ -456,7 +487,7 @@ rc    "L5 shaving one line off a survivor does NOT pay for a file" 1 "$RUN_RC"
 has   "L6 ...and the reap directive is what it gets"               "$RUN_OUT" "RUN /reap"
 
 echo "-- U(accept). --accept still refuses to raise WITHIN a unit"
-printf '# markdown-cost.ratchet\n# unit: 4\n# accepted whenever\n1\n' > "$T/unitchg/.r"
+printf '# markdown-cost.ratchet\n# unit: 5\n# accepted whenever\n1\n' > "$T/unitchg/.r"
 RUN_OUT="$(cd "$T/unitchg" && MARKDOWN_COST_RATCHET="$T/unitchg/.r" "$SCRIPT" --accept 2>&1)"; RUN_RC=$?
 rc  "U6 same-unit raise is still REFUSED"            1 "$RUN_RC"
 has "U7 and says so"                                 "$RUN_OUT" "REFUSED"
