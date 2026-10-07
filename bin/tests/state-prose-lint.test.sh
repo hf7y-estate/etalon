@@ -101,4 +101,47 @@ G selfscan add -A; G selfscan commit -qm copied
 run selfscan --accept
 has "F1 the two guards contribute nothing"        "$RUN_OUT" "baseline is now 0 line(s)"
 
+section "G. --causal reads TEXT, not a tree -- etalon#20"
+causal() { RUN_OUT="$("$SCRIPT" --causal <<<"$1" 2>&1)"; RUN_RC=$?; }
+
+causal 'Parking the fleet is why the verb build cut froze.
+
+No witness attached here, just the claim.'
+rc  "G1 an unwitnessed causal claim exits 1"      1 "$RUN_RC"
+has "G2 and quotes the claim"                     "$RUN_OUT" "UNWITNESSED: Parking the fleet"
+has "G3 report-only, says so"                     "$RUN_OUT" "does not deny on its own"
+
+causal 'Parking the fleet is why the verb build cut froze.
+
+Disproving command, in full:
+
+    gh run list --repo hf7y/verbs --limit 6'
+rc  "G4 a witness 2 paragraphs away clears it"    0 "$RUN_RC"
+hasnt "G5 no FLAG"                                "$RUN_OUT" "FLAG ["
+
+causal 'It failed because of `bad_flag.sh:42`, confirmed by running it.'
+rc  "G6 a same-paragraph backtick witness clears it" 0 "$RUN_RC"
+
+causal 'It is why the build failed, see https://github.com/hf7y/verbs/actions/runs/1'
+rc  "G7 a run URL witness clears it"              0 "$RUN_RC"
+
+causal 'Parking the fleet is why the verb build cut froze.
+
+unrelated filler one.
+
+unrelated filler two.
+
+    gh run list --repo hf7y/verbs --limit 6'
+rc  "G8 a witness 3 paragraphs away still flags"  1 "$RUN_RC"
+
+causal 'Nothing causal here, just a status update.'
+rc  "G9 no causal connective exits 0"             0 "$RUN_RC"
+has "G10 and says zero were found"                "$RUN_OUT" "0 unwitnessed causal claim(s)"
+
+causal ''
+rc  "G11 empty stdin exits 0, not BLIND"          0 "$RUN_RC"
+
+RUN_OUT="$(cd "$T/notrepo" && "$SCRIPT" --causal </dev/null 2>&1)"; RUN_RC=$?
+rc  "G12 --causal needs no git repository at all" 0 "$RUN_RC"
+
 summary

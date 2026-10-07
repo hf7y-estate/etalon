@@ -13,10 +13,14 @@ set -uo pipefail
 CLI_NAME='state-prose-lint.sh'
 CLI_SUMMARY='does this tree describe its own state where it should encode a mechanism?'
 CLI_USAGE='  state-prose-lint.sh           census the TREE against bin/state-prose.ratchet
-  state-prose-lint.sh --accept  record the current tree count as the baseline'
-CLI_FLAGS='--accept'
-CLI_EXITS='  0  the tree was read and it is at or under the baseline
-  1  over the baseline, or --accept was asked to raise it
+  state-prose-lint.sh --accept  record the current tree count as the baseline
+  state-prose-lint.sh --causal  read TEXT on stdin (an issue/PR body), flag an
+                                 unwitnessed causal claim. Report-only: a
+                                 caller gating on this should warn, not deny
+                                 (etalon#20). No ratchet, no tree.'
+CLI_FLAGS='--accept --causal'
+CLI_EXITS='  0  the tree was read and it is at or under the baseline, or --causal found nothing
+  1  over the baseline, --accept was asked to raise it, or --causal found an unwitnessed claim
   2  usage error, or an unreadable baseline
   6  BLIND: not a repository, or the census could not read the tree'
 CLI_POSITIONAL=none
@@ -26,6 +30,66 @@ cli_guard "$@"
 
 die2()    { printf '%s: %s\n' "$CLI_NAME" "$*" >&2; exit "$EXIT_USAGE"; }
 dieblind(){ printf '%s: BLIND -- %s\n' "$CLI_NAME" "$*" >&2; exit "$EXIT_BLIND"; }
+
+# --causal reads a body of TEXT (not a git tree -- an issue/PR body has no
+# merge base to re-baseline against), so it runs before any git check and
+# carries no ratchet. etalon#20: a causal connective ("because", "is why", ...)
+# with no witness (a fenced/indented command, a backtick span, a run URL, a
+# file:line citation) in the same or an adjacent paragraph is unwitnessed.
+# Adjacent means a small window either side, not same-paragraph-only:
+# etalon#20's own specimens state the claim, then a "Disproving command, in
+# full:" label, then the witness, each its own paragraph -- and #4's
+# precision-over-recall stance means a wide-but-wrong witness match is cheaper
+# than a narrative paragraph flagged for a witness just out of reach.
+CAUSAL_AWK='
+function flushpara() {
+  if (buf_nonblank) { n++; P[n] = para }
+  para = ""; buf_nonblank = 0
+}
+{
+  if ($0 == "") { flushpara(); next }
+  buf_nonblank = 1
+  if (para == "") para = $0; else para = para "\n" $0
+}
+END {
+  flushpara()
+  for (i = 1; i <= n; i++) {
+    low = tolower(P[i])
+    C[i] = (low ~ /(^|[^a-z])(because|caused|is why|so that|due to|the cause is|which is why|therefore)([^a-z]|$)/)
+    W[i] = (P[i] ~ /```/) || (P[i] ~ /`[^`]+`/) || (low ~ /https?:\/\//) \
+        || (P[i] ~ /[A-Za-z0-9_.\/-]+\.[a-z]+:[0-9]+/) || (P[i] ~ /(^|\n)[ \t][ \t][ \t][ \t]/)
+  }
+  findings = 0
+  for (i = 1; i <= n; i++) {
+    if (!C[i]) continue
+    witnessed = 0
+    for (j = i - 2; j <= i + 2; j++) { if (j >= 1 && j <= n && W[j]) witnessed = 1 }
+    if (witnessed) continue
+    flat = P[i]; gsub(/\n/, " / ", flat)
+    printf "UNWITNESSED: %s\n", substr(flat, 1, 160)
+    findings++
+  }
+  printf "PARAGRAPHS %d\n", n
+  printf "FINDINGS %d\n", findings
+}
+'
+
+if [ "${1:-}" = --causal ]; then
+  CAUSAL_OUT="$(awk "$CAUSAL_AWK")" || dieblind "could not scan stdin"
+  CAUSAL_PARAS="$(printf '%s\n' "$CAUSAL_OUT" | sed -n 's/^PARAGRAPHS //p')"
+  CAUSAL_FOUND="$(printf '%s\n' "$CAUSAL_OUT" | sed -n 's/^FINDINGS //p')"
+  case "$CAUSAL_FOUND" in ''|*[!0-9]*) dieblind "the causal scan produced no finding count" ;; esac
+  printf 'state-prose-lint --causal -- %s unwitnessed causal claim(s) of %s paragraph(s) considered\n' \
+    "$CAUSAL_FOUND" "$CAUSAL_PARAS"
+  printf '%s\n' "$CAUSAL_OUT" | grep '^UNWITNESSED: ' | sed 's/^/  /'
+  if [ "$CAUSAL_FOUND" -gt 0 ]; then
+    printf '  FLAG [causal] a causal claim with no adjacent witness. Report-only: this\n'
+    printf '        does not deny on its own (etalon#20) -- attach the command, citation,\n'
+    printf '        or run URL that was checked before writing it.\n'
+    exit "$EXIT_FINDING"
+  fi
+  exit "$EXIT_OK"
+fi
 
 RATCHET="${STATE_PROSE_RATCHET:-$(dirname "${BASH_SOURCE[0]}")/state-prose.ratchet}"
 
