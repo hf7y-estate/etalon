@@ -92,6 +92,8 @@ newrepo noratchet
 run noratchet
 rc  "E4 a missing baseline is BLIND, not a pass"  6 "$RUN_RC"
 has "E5 and says how to seed it"                  "$RUN_OUT" "--accept"
+run clean some-typo
+rc  "E6 a stray positional is a usage error, not a silent full census" 2 "$RUN_RC"
 
 section "F. it does not flag its own source"
 newrepo selfscan
@@ -162,5 +164,76 @@ printf 'no shebang, just a plain extensionless file\n' > "$T/extensionless/binar
 G extensionless add -A; G extensionless commit -qm blob
 run extensionless
 hasnt "H5 a non-shebang extensionless file is still skipped" "$RUN_OUT" "binary-blob"
+
+section "I. --api censuses milestone/label descriptions via a stubbed GitHub API -- etalon#137"
+
+cat > "$T/fake-gh" <<'EOF'
+#!/usr/bin/env bash
+case "$2" in
+  repos/*/milestones) cat "$FAKE_GH_MILESTONES" ;;
+  repos/*/labels) cat "$FAKE_GH_LABELS" ;;
+  *) exit 1 ;;
+esac
+EOF
+chmod +x "$T/fake-gh"
+
+apirun() { # <milestones-json> <labels-json> <api-args...>
+  local ms="$1" lb="$2"; shift 2
+  printf '%s' "$ms" > "$T/ms.json"
+  printf '%s' "$lb" > "$T/lb.json"
+  RUN_OUT="$(STATE_PROSE_GH="$T/fake-gh" FAKE_GH_MILESTONES="$T/ms.json" FAKE_GH_LABELS="$T/lb.json" \
+    STATE_PROSE_API_RATCHET="$T/.api-ratchet" "$SCRIPT" --api hf7y/sample "$@" 2>&1)"
+  RUN_RC=$?
+}
+
+CLEAN_MS='[{"title":"v1","description":"Ships the mechanism without describing its own state."}]'
+CLEAN_LB='[{"name":"bug","description":"Something is broken and needs a fix."}]'
+STATE_MS='[{"title":"v0.2","description":"v0.2 was armed on 2026-09-02 and dispatches 45 issues."}]'
+STATE_LB='[{"name":"needs-host","description":"Twelve repos carry it today."}]'
+
+rm -f "$T/.api-ratchet"
+apirun "$CLEAN_MS" "$CLEAN_LB" --accept
+rc  "I1 --accept seeds a baseline from a clean API response"  0 "$RUN_RC"
+has "I2 and says what it recorded"                "$RUN_OUT" "baseline is now 0 line(s)"
+
+apirun "$CLEAN_MS" "$CLEAN_LB"
+rc  "I3 at the baseline it exits 0"               0 "$RUN_RC"
+hasnt "I4 raising no FLAG"                        "$RUN_OUT" "FLAG ["
+
+apirun "$STATE_MS" "$STATE_LB"
+rc  "I5 a stale milestone and label description exits 1" 1 "$RUN_RC"
+has "I6 the dated milestone claim is named"       "$RUN_OUT" "milestone:v0.2: [date]"
+has "I7 the counted label claim is named"         "$RUN_OUT" "label:needs-host: [count]"
+has "I8 it names the API ratchet"                 "$RUN_OUT" "FLAG [state-prose-api]"
+
+apirun "$STATE_MS" "$STATE_LB" --accept
+rc  "I9 --accept REFUSES to raise the API baseline" 1 "$RUN_RC"
+has "I10 and says so"                             "$RUN_OUT" "REFUSED"
+eq  "I11 leaving the baseline untouched"          "$(grep -v '^#' "$T/.api-ratchet" | tr -d '[:space:]')" "0"
+
+rm -f "$T/.api-ratchet"
+apirun "$STATE_MS" "$CLEAN_LB" --accept
+has "I12 --accept records the new, lower-is-fine count" "$RUN_OUT" "baseline is now 1 line(s)"
+
+RUN_OUT="$(STATE_PROSE_GH="$T/fake-gh" FAKE_GH_MILESTONES=/does/not/exist FAKE_GH_LABELS="$T/lb.json" \
+  STATE_PROSE_API_RATCHET="$T/.api-ratchet" "$SCRIPT" --api hf7y/sample 2>&1)"; RUN_RC=$?
+rc  "I13 an unreachable API exits BLIND"          6 "$RUN_RC"
+has "I14 and says so"                             "$RUN_OUT" "BLIND"
+
+printf 'not json' > "$T/ms.json"
+RUN_OUT="$(STATE_PROSE_GH="$T/fake-gh" FAKE_GH_MILESTONES="$T/ms.json" FAKE_GH_LABELS="$T/lb.json" \
+  STATE_PROSE_API_RATCHET="$T/.api-ratchet" "$SCRIPT" --api hf7y/sample 2>&1)"; RUN_RC=$?
+rc  "I15 a non-JSON API response exits BLIND"     6 "$RUN_RC"
+
+rm -f "$T/.api-ratchet"
+apirun "$CLEAN_MS" "$CLEAN_LB"
+rc  "I16 a missing API ratchet is BLIND, not a pass" 6 "$RUN_RC"
+has "I17 and says how to seed it"                 "$RUN_OUT" "--accept"
+
+RUN_OUT="$("$SCRIPT" --api 2>&1)"; RUN_RC=$?
+rc  "I18 --api with no OWNER/REPO is a usage error" 2 "$RUN_RC"
+
+RUN_OUT="$("$SCRIPT" --api hf7y/sample --bogus 2>&1)"; RUN_RC=$?
+rc  "I19 a trailing argument other than --accept is a usage error" 2 "$RUN_RC"
 
 summary

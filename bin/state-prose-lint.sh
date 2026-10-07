@@ -17,13 +17,22 @@ CLI_USAGE='  state-prose-lint.sh           census the TREE against bin/state-pro
   state-prose-lint.sh --causal  read TEXT on stdin (an issue/PR body), flag an
                                  unwitnessed causal claim. Report-only: a
                                  caller gating on this should warn, not deny
-                                 (etalon#20). No ratchet, no tree.'
-CLI_FLAGS='--accept --causal'
+                                 (etalon#20). No ratchet, no tree.
+  state-prose-lint.sh --api OWNER/REPO
+                                 census OWNER/REPOs milestone and label
+                                 descriptions via the GitHub API against
+                                 bin/state-prose-api.ratchet -- API objects
+                                 are not in a git tree, so they carry their
+                                 own ratchet (etalon#137).
+  state-prose-lint.sh --api OWNER/REPO --accept
+                                 record that census as the baseline'
+CLI_FLAGS='--accept --causal --api'
 CLI_EXITS='  0  the tree was read and it is at or under the baseline, or --causal found nothing
   1  over the baseline, --accept was asked to raise it, or --causal found an unwitnessed claim
   2  usage error, or an unreadable baseline
-  6  BLIND: not a repository, or the census could not read the tree'
-CLI_POSITIONAL=none
+  6  BLIND: not a repository, the census could not read the tree, or --api
+     could not read OWNER/REPOs milestones or labels from the API'
+CLI_POSITIONAL=any
 . "$(dirname "${BASH_SOURCE[0]}")/lib/cli-guard.sh"
 . "$(dirname "${BASH_SOURCE[0]}")/lib/exit-codes.sh"
 cli_guard "$@"
@@ -90,6 +99,131 @@ if [ "${1:-}" = --causal ]; then
   fi
   exit "$EXIT_OK"
 fi
+
+# --api censuses GitHub API objects (milestone/label descriptions), which
+# live outside any git tree and so cannot share state-prose.ratchet's
+# baseline -- etalon#137. STATE_PROSE_GH lets a test point this at a stub
+# instead of the real `gh`, the same seam --causal and the tree scan have
+# via STATE_PROSE_RATCHET.
+API_SCAN_AWK='
+BEGIN {
+  FS = "\t"
+  QTY = "(^|[^a-z0-9_-])(two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|hundred|[0-9]+)[ -]([a-z][a-z-]*[ -])?([a-z][a-z-]*[ -])?[a-z][a-z-]*s([^a-z]|$)"
+  QTY_STOP = "(^|[^a-z])(is|was|has|as|this|thus|its|us|does|goes|less|else|yes|plus|across|unless|always|versus|status|series|means|says|gives|takes|makes|needs|reads|writes|exists|runs|does|its)([^a-z]|$)"
+}
+{
+  if (kind != $1 || name != $2) fence = 0
+  kind = $1; name = $2
+  line = $3
+  sub(/^[ \t]+/, "", line)
+  if (line == "") next
+  if (line ~ /^```/) { fence = !fence; next }
+  if (fence) next
+  considered++
+  s = tolower(line)
+  if (s ~ /(https?:\/\/|shellcheck |[$][{(])/) next
+  if (s ~ /exactly|by construction|at most|at least|no more than|invariant|(^| )(must|never|always|only|per|each|any|every)( |$)/) next
+  hit = ""
+  if (s ~ /(^|[^0-9])(19|20)[0-9][0-9]-[0-9][0-9]-[0-9][0-9]([^0-9]|$)/) hit = "date"
+  else if (s ~ /(^| )as of( |$)/) hit = "as-of"
+  else if (s ~ QTY && s !~ QTY_STOP) hit = "count"
+  if (hit == "") next
+  printf "%s:%s: [%s] %s\n", kind, name, hit, substr(line, 1, 90)
+}
+END { printf "CONSIDERED %d\n", considered + 0 }
+'
+
+if [ "${1:-}" = --api ]; then
+  shift
+  API_REPO="${1:-}"
+  case "$API_REPO" in
+    */*) shift ;;
+    *) die2 "--api needs an OWNER/REPO argument" ;;
+  esac
+  API_ACCEPT=0
+  case "${1:-}" in
+    --accept) API_ACCEPT=1; shift ;;
+    '') ;;
+    *) die2 "unexpected argument: $1" ;;
+  esac
+
+  GH_BIN="${STATE_PROSE_GH:-gh}"
+  api_get() { "$GH_BIN" api "repos/$API_REPO/$1" --paginate 2>/dev/null; } # <endpoint>
+
+  # jq on empty input runs the filter zero times and -e then exits 0 (no
+  # output was ever false/null), so a silently-failed `gh` whose stdout is
+  # empty would read as success: the fetch's own exit status is checked
+  # first, and the content second.
+  is_json_array() { # <text>
+    [ -n "$1" ] || return 1
+    printf '%s' "$1" | jq -e 'type == "array"' >/dev/null 2>&1
+  }
+
+  MILESTONES_JSON="$(api_get milestones)"; ms_rc=$?
+  if [ "$ms_rc" -ne 0 ] || ! is_json_array "$MILESTONES_JSON"; then
+    dieblind "could not read repos/$API_REPO/milestones from the API"
+  fi
+  LABELS_JSON="$(api_get labels)"; lb_rc=$?
+  if [ "$lb_rc" -ne 0 ] || ! is_json_array "$LABELS_JSON"; then
+    dieblind "could not read repos/$API_REPO/labels from the API"
+  fi
+
+  API_STREAM="$( {
+    printf '%s' "$MILESTONES_JSON" | jq -r '.[] | ["milestone", .title, ((.description // "") | split("\n")[])] | @tsv'
+    printf '%s' "$LABELS_JSON" | jq -r '.[] | ["label", .name, ((.description // "") | split("\n")[])] | @tsv'
+  } )" || dieblind "could not read titles/names/descriptions from the API response"
+
+  API_REPORT="$(printf '%s\n' "$API_STREAM" | awk "$API_SCAN_AWK")" || dieblind "the API census could not scan the descriptions"
+  API_CONSIDERED="$(printf '%s\n' "$API_REPORT" | sed -n 's/^CONSIDERED //p')"
+  case "$API_CONSIDERED" in ''|*[!0-9]*) dieblind "the API census produced no line count" ;; esac
+  API_FINDINGS="$(printf '%s\n' "$API_REPORT" | grep -v '^CONSIDERED ' | grep -c .)"
+
+  API_RATCHET="${STATE_PROSE_API_RATCHET:-$(dirname "${BASH_SOURCE[0]}")/state-prose-api.ratchet}"
+
+  if [ "$API_ACCEPT" -eq 1 ]; then
+    if [ -f "$API_RATCHET" ]; then
+      prev="$(grep -v '^#' "$API_RATCHET" | tr -d '[:space:]')"
+      case "$prev" in ''|*[!0-9]*) prev='' ;; esac
+      if [ -n "$prev" ] && [ "$API_FINDINGS" -gt "$prev" ]; then
+        printf 'state-prose-lint --api --accept -- REFUSED. %s is %d line(s) ABOVE the\n' "$API_REPO" "$((API_FINDINGS - prev))" >&2
+        printf '  baseline of %s, and this ratchet only falls. Edit the description instead.\n' "$prev" >&2
+        exit "$EXIT_FINDING"
+      fi
+    fi
+    printf '# state-prose-api.ratchet -- state-describing lines in %s milestone/label descriptions. SHRINKS ONLY.\n# Written by state-prose-lint.sh --api %s --accept, which refuses to raise it.\n# accepted %s\n%s\n' \
+      "$API_REPO" "$API_REPO" "$(date -Is)" "$API_FINDINGS" > "$API_RATCHET" || dieblind "cannot write $API_RATCHET"
+    printf 'state-prose-lint --api %s --accept -- baseline is now %s line(s).\n' "$API_REPO" "$API_FINDINGS"
+    exit "$EXIT_OK"
+  fi
+
+  [ -f "$API_RATCHET" ] || dieblind "no ratchet at $API_RATCHET -- run --api $API_REPO --accept to seed it. A missing baseline is not a pass."
+  was="$(grep -v '^#' "$API_RATCHET" | tr -d '[:space:]')"
+  case "$was" in ''|*[!0-9]*) die2 "unreadable baseline in $API_RATCHET: '$was'" ;; esac
+
+  printf 'state-prose-lint --api %s -- %s state-describing line(s) of %s considered, baseline %s\n' \
+    "$API_REPO" "$API_FINDINGS" "$API_CONSIDERED" "$was"
+  printf '%s\n' "$API_REPORT" | grep -v '^CONSIDERED ' | grep . | sed 's/^/  /'
+
+  if [ "$API_FINDINGS" -gt "$was" ]; then
+    printf '  FLAG [state-prose-api] %s gained %d state-describing line(s) over the\n' "$API_REPO" "$((API_FINDINGS - was))"
+    printf '        baseline of %s in its milestone/label descriptions. The ratchet only\n' "$was"
+    printf '        falls, and raising %s is rejected too.\n' "$API_RATCHET"
+    exit "$EXIT_FINDING"
+  fi
+  [ "$API_FINDINGS" -lt "$was" ] && printf '  %d line(s) below the baseline -- run --api %s --accept to lock it in.\n' "$((was - API_FINDINGS))" "$API_REPO"
+  printf '  ok -- at or under the baseline.\n'
+  exit "$EXIT_OK"
+fi
+
+# CLI_POSITIONAL=any (above) exists so --api's OWNER/REPO argument clears
+# cli_guard -- it does not mean a stray positional is quietly allowed here
+# too. Without this, "state-prose-lint.sh some-typo" would fall through to a
+# full, unflagged tree census: the exact silent-full-run trap bin/lib/cli-
+# guard.sh's own header warns about.
+case "${1:-}" in
+  ''|--accept) ;;
+  *) die2 "unexpected argument: $1" ;;
+esac
 
 RATCHET="${STATE_PROSE_RATCHET:-$(dirname "${BASH_SOURCE[0]}")/state-prose.ratchet}"
 
