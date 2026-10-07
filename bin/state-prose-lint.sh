@@ -110,7 +110,14 @@ function lang(f) {
   if (f ~ /\.(mjs|js)$/)                return "j"
   return ""
 }
-FNR == 1 { L = lang(FILENAME); fence = 0 }
+# etalon#24: a state-carrying file need not have an extension (hf7y/scheduler
+# ROSTER is the known instance) -- a shebang on line 1 is the content-sniff
+# bin/lib/verb-set.sh already uses to answer "is this a verb".
+FNR == 1 {
+  L = lang(FILENAME)
+  if (L == "" && ($0 ~ /^#!.*(\/|env )(ba)?sh([^a-z]|$)/ || $0 ~ /^#!.*(\/|env )python[0-9.]*([^a-z]|$)/)) L = "h"
+  fence = 0
+}
 {
   if (L == "") next
   line = $0
