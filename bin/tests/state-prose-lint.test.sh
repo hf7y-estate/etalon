@@ -144,4 +144,23 @@ rc  "G11 empty stdin exits 0, not BLIND"          0 "$RUN_RC"
 RUN_OUT="$(cd "$T/notrepo" && "$SCRIPT" --causal </dev/null 2>&1)"; RUN_RC=$?
 rc  "G12 --causal needs no git repository at all" 0 "$RUN_RC"
 
+section "H. an extensionless shebang file is not skipped -- etalon#24"
+newrepo extensionless
+printf '#!/usr/bin/env bash\n# probed 2026-08-13, four accounts stamped unknown\nexit 0\n' > "$T/extensionless/ROSTER"
+G extensionless add -A; G extensionless commit -qm roster
+run extensionless --accept
+has "H1 the extensionless file is scanned"        "$RUN_OUT" "baseline is now 1 line(s)"
+G extensionless add -A; G extensionless commit -qm ratchet
+run extensionless
+has "H2 and the finding names it"                 "$RUN_OUT" "ROSTER:2:"
+printf '#!/usr/bin/env python3\n# ten accounts enrolled today\nexit 0\n' > "$T/extensionless/other-roster"
+G extensionless add -A; G extensionless commit -qm grew
+run extensionless
+rc  "H3 a python shebang is sniffed too"          1 "$RUN_RC"
+has "H4 both files now counted"                   "$RUN_OUT" "other-roster:2:"
+printf 'no shebang, just a plain extensionless file\n' > "$T/extensionless/binary-blob"
+G extensionless add -A; G extensionless commit -qm blob
+run extensionless
+hasnt "H5 a non-shebang extensionless file is still skipped" "$RUN_OUT" "binary-blob"
+
 summary
