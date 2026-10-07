@@ -47,10 +47,33 @@ is_test() {
   return 1
 }
 
+# A script is charged only against a caller someone can point at: a workflow
+# job step that names it outside the `bin/tests/*.test.sh` glob loop, or a
+# header that declares its own by-hand invocation with a reason. A
+# `# RUNNER: .github/workflows/tests.yml` header only says its *test* runs in
+# CI -- it is not itself a caller, which is the ambiguity that let #116 read
+# "no caller in code" as "unused" and delete three wired tools.
+workflow_invokes() { # <path, relative to REPO>
+  local path="$1" wf
+  for wf in "$REPO"/.github/workflows/*.yml "$REPO"/.github/workflows/*.yaml; do
+    [ -f "$wf" ] || continue
+    grep -F -- "$path" "$wf" 2>/dev/null | grep -qv 'bin/tests/\*\.test\.sh' && return 0
+  done
+  return 1
+}
+
+by_hand_declared() { # <path, relative to REPO>
+  local path="$1"
+  [ -f "$REPO/$path" ] || return 1
+  sed -n '1,10p' "$REPO/$path" | grep -Eq '^# RUNNER: by hand[[:space:]]*--[[:space:]]*\S'
+}
+
 is_mechanism() { # <mode> <path>
   is_test "$2" && return 1
   case "$2" in .github/workflows/*.yml|.github/workflows/*.yaml) return 0 ;; esac
-  [ "$1" = 100755 ] && return 0
+  [ "$1" = 100755 ] || return 1
+  workflow_invokes "$2" && return 0
+  by_hand_declared "$2" && return 0
   return 1
 }
 
