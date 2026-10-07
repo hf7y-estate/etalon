@@ -130,4 +130,23 @@ has "E5 the workflow that invokes it is charged too"    "$RUN_OUT" ".github/work
 hasnt "E6 an uncalled executable is not charged"        "$RUN_OUT" "bin/plain.sh"
 hasnt "E7 a script run only via the test glob is not charged -- #116" "$RUN_OUT" "bin/glob-runner.sh"
 
+section "F. --unwired finds a built tool with no verified caller (etalon#127)"
+run callers --unwired
+rc    "F1 two unwired executables exits 1"              1 "$RUN_RC"
+has   "F2 the plain script is named"                     "$RUN_OUT" "bin/plain.sh"
+has   "F3 a RUNNER comment that names no real step too"  "$RUN_OUT" "bin/glob-runner.sh"
+hasnt "F4 the by-hand script is not flagged"             "$RUN_OUT" "bin/manual.sh"
+hasnt "F5 the workflow-invoked script is not flagged"    "$RUN_OUT" "bin/direct.sh"
+hasnt "F6 the test file is not flagged"                  "$RUN_OUT" "bin/tests/glob-runner.test.sh"
+
+newrepo wired
+mech_called wired bin/direct.sh ci
+G wired add -A; G wired commit -qm scripts
+run wired --unwired
+rc  "F7 every executable named clears it"                0 "$RUN_RC"
+has "F8 and says so"                                     "$RUN_OUT" "ok -- every executable names a caller."
+
+run callers --unwired --accept
+rc  "F9 --unwired and --accept refuse to combine"        2 "$RUN_RC"
+
 summary
