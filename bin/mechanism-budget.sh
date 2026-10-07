@@ -47,10 +47,39 @@ is_test() {
   return 1
 }
 
+# A mechanism is billed only for a verifiable caller: a workflow job step
+# that names its path directly, or a header that says by hand and why. The
+# bin/tests/*.test.sh glob never spells a script's own path, so a plain
+# grep for that path already lands outside the glob loop -- a script whose
+# only runner is "its test ran in CI" (the #116 case) matches neither and
+# is not charged.
+workflow_invokes() { # <path>
+  local wf
+  for wf in "$REPO"/.github/workflows/*.yml "$REPO"/.github/workflows/*.yaml; do
+    [ -f "$wf" ] || continue
+    grep -Fq "$1" "$wf" && return 0
+  done
+  return 1
+}
+
+runner_declared_by_hand() { # <path>
+  local line reason
+  line="$(grep -m1 '^# RUNNER:' "$REPO/$1" 2>/dev/null)" || return 1
+  case "$line" in
+    '# RUNNER: by hand -- '*) ;;
+    *) return 1 ;;
+  esac
+  reason="${line#*by hand -- }"
+  reason="$(printf '%s' "$reason" | tr -d '[:space:]')"
+  [ -n "$reason" ]
+}
+
 is_mechanism() { # <mode> <path>
   is_test "$2" && return 1
   case "$2" in .github/workflows/*.yml|.github/workflows/*.yaml) return 0 ;; esac
-  [ "$1" = 100755 ] && return 0
+  [ "$1" = 100755 ] || return 1
+  workflow_invokes "$2" && return 0
+  runner_declared_by_hand "$2" && return 0
   return 1
 }
 
