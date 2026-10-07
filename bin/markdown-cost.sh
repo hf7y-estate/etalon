@@ -65,6 +65,27 @@ prose_excluded() { # <path> -> 0 if no rule should grade this file
   # A full regeneration after an upstream change can rewrite most of the file
   # on values alone, with no way to pay that off short of not regenerating it.
   case "$1" in reports/*|*/reports/*) return 0 ;; esac
+  prose_vendored_elsewhere "$1" && return 0
+  return 1
+}
+
+# A vendored/canonical-elsewhere file is prose authored somewhere else, not in
+# this tree -- the same shape as the residue/canon exemption above, extended
+# from "retired in place" to "written in place" (hf7y/dcp-gate-site#104). A
+# wholesale port of another repo's suite, headed per the estate's own
+# do-not-edit-here convention, otherwise inflates this repo's own census for
+# prose no local reap can ever pay off: the repo is explicitly told not to
+# hand-edit the file.
+VENDOR_HEADER_LINES=20
+prose_vendored_elsewhere() { # <path> -> 0 if the header both claims and names an upstream source
+  [ -n "$(prose_lang "$1")" ] || return 1
+  [ -f "$1" ] || return 1
+  local head
+  head="$(head -n "$VENDOR_HEADER_LINES" -- "$1" 2>/dev/null)"
+  case "$head" in
+    *'VENDORED.'*'source repo:'*)             return 0 ;;
+    *'CANONICAL COPY LIVES AT'*'canonical:'*) return 0 ;;
+  esac
   return 1
 }
 
