@@ -22,6 +22,12 @@ newrepo() {
 
   mech() {
   mkdir -p "$(dirname "$T/$1/$2")"
+  printf '#!/usr/bin/env bash\n# RUNNER: by hand -- test fixture\nexit 0\n' > "$T/$1/$2"
+  chmod +x "$T/$1/$2"
+}
+
+  bare() { # <repo> <relpath> -- executable, no workflow caller, no declaration
+  mkdir -p "$(dirname "$T/$1/$2")"
   printf '#!/usr/bin/env bash\nexit 0\n' > "$T/$1/$2"
   chmod +x "$T/$1/$2"
 }
@@ -85,5 +91,32 @@ newrepo noratchet
 run noratchet
 rc  "D5 a missing baseline is BLIND, not a pass" 6 "$RUN_RC"
 has "D6 and says how to seed it"              "$RUN_OUT" "--accept"
+
+section "E. a mechanism must have a verifiable caller, not just the executable bit"
+newrepo predicate
+mkdir -p "$T/predicate/.github/workflows"
+printf 'name: ci\njobs:\n  x:\n    steps:\n      - run: bash bin/invoked.sh\n' \
+  > "$T/predicate/.github/workflows/ci.yml"
+bare predicate bin/invoked.sh
+mech predicate bin/declared.sh
+bare predicate bin/bare.sh
+printf '#!/usr/bin/env bash\n# RUNNER: .github/workflows/tests.yml\nexit 0\n' \
+  > "$T/predicate/bin/testrunner-only.sh"
+chmod +x "$T/predicate/bin/testrunner-only.sh"
+mkdir -p "$T/predicate/bin/tests"
+printf '#!/usr/bin/env bash\nexit 0\n' > "$T/predicate/bin/tests/testrunner-only.test.sh"
+chmod +x "$T/predicate/bin/tests/testrunner-only.test.sh"
+G predicate add -A; G predicate commit -qm predicate
+run predicate --accept
+has "E1 workflow-invoked + by-hand-declared + the workflow file itself" \
+                                               "$RUN_OUT" "baseline is now 3 mechanism(s)"
+printf '0\n' > "$T/predicate/.mechanism-ratchet"
+run predicate
+has "E2 over a zero baseline the delta is +3" "$RUN_OUT" "delta +3"
+has "E3 a workflow-job-invoked script is charged"   "$RUN_OUT" "bin/invoked.sh"
+has "E4 a by-hand declared script is charged"       "$RUN_OUT" "bin/declared.sh"
+hasnt "E5 an executable with no caller is not charged" "$RUN_OUT" "bin/bare.sh"
+hasnt "E6 a RUNNER pointing only at its own test is not charged" \
+                                               "$RUN_OUT" "bin/testrunner-only.sh"
 
 summary
