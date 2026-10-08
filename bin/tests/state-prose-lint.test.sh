@@ -163,4 +163,24 @@ G extensionless add -A; G extensionless commit -qm blob
 run extensionless
 hasnt "H5 a non-shebang extensionless file is still skipped" "$RUN_OUT" "binary-blob"
 
+section "I. research/ and reports/ are a finding record, not state -- markdown-cost's own exemption, mirrored"
+newrepo findings
+mkdir -p "$T/findings/research" "$T/findings/reports" "$T/findings/nested/reports" "$T/findings/canon"
+printf 'On 2026-10-06 three accounts were enrolled.\n' > "$T/findings/research/notes.md"
+printf 'Two PRs sat twelve days before merging.\n' > "$T/findings/reports/postmortem.md"
+printf 'Five repos drifted as of 2026-09-02.\n' > "$T/findings/nested/reports/sub.md"
+printf '# canon carries its own build note, 2026-08-05\nexit 0\n' > "$T/findings/canon/verb.sh"
+G findings add -A; G findings commit -qm findings
+run findings --accept
+has "I1 none of research/, reports/, or nested reports/ is counted" "$RUN_OUT" "baseline is now 0 line(s)"
+G findings add -A; G findings commit -qm ratchet
+run findings
+rc  "I2 and the tree still reads clean"           0 "$RUN_RC"
+hasnt "I3 canon/ stays excluded too"              "$RUN_OUT" "verb.sh"
+printf 'A sibling file outside those directories, four accounts stamped unknown.\n' > "$T/findings/NOTES.md"
+G findings add -A; G findings commit -qm leak
+run findings
+rc  "I4 the same prose OUTSIDE those directories is still caught" 1 "$RUN_RC"
+has "I5 and names it"                             "$RUN_OUT" "NOTES.md:1:"
+
 summary

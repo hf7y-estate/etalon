@@ -173,7 +173,16 @@ git rev-parse --git-dir >/dev/null 2>&1 || dieblind "not inside a git repository
 NFILES="$(git ls-files | grep -c .)" || dieblind "cannot list tracked files"
 [ "${NFILES:-0}" -gt 0 ] || dieblind "no tracked files -- refusing to report a clean tree I did not read"
 
-REPORT="$(git ls-files -z | grep -zv '^canon/' | scan)" || dieblind "the scan could not read the tree"
+# research/ and reports/ are a repo's own measured-finding record -- a dated
+# postmortem or a research doc is EXPECTED to carry the dates and counts it
+# found, and this scan cannot tell "this happened on that day" from "this IS
+# the state today". bin/markdown-cost.sh's prose_excluded() already draws
+# this exclusion for its own census, for the same reason; PR#95 and PR#104
+# tripped the gap this closes, each flagged for the dated finding its own
+# body asked it to carry. canon/ is excluded for the same reason one
+# directory over: it is not this repo's state to describe.
+REPORT="$(git ls-files -z | grep -zvE '^(canon|research|reports)/|/(canon|research|reports)/' | scan)" \
+  || dieblind "the scan could not read the tree"
 CONSIDERED="$(printf '%s\n' "$REPORT" | sed -n 's/^CONSIDERED //p')"
 case "$CONSIDERED" in ''|*[!0-9]*) dieblind "the scan produced no line count" ;; esac
 FINDINGS="$(printf '%s\n' "$REPORT" | grep -v '^CONSIDERED ' | grep -c . )"
