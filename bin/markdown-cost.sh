@@ -521,7 +521,12 @@ if [ "${1:-}" = --census ] || [ "${1:-}" = --accept ]; then
     prev="$(printf '%s\n' "$prev_text" | grep -v '^#' | tr -d '[:space:]')"
     case "$prev" in ''|*[!0-9]*) prev='' ;; esac
     # Two numbers in different units are not a raise; the re-base IS the change.
-    [ "$(ratchet_unit "$prev_text")" = "$was_unit" ] || prev=''
+    # But a re-base into this unit still answers to the merge-base tree measured
+    # live, or re-accepting launders whatever the same branch added (#23).
+    if [ -n "$prev" ] && [ "$(ratchet_unit "$prev_text")" != "$was_unit" ]; then
+      prev=''
+      [ "$was_unit" = "$MEASURE_UNIT" ] && prev="$base"
+    fi
     if [ -n "$prev" ] && [ "$was" -gt "$prev" ]; then
       printf '  FLAG [prose-ratchet] this branch RAISES the baseline from %s to %s.\n' "$prev" "$was"
       printf '        The ratchet only falls, and there is no override. Reap prose until\n'
