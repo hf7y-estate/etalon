@@ -17,13 +17,19 @@ CLI_USAGE='  state-prose-lint.sh           census the TREE against bin/state-pro
   state-prose-lint.sh --causal  read TEXT on stdin (an issue/PR body), flag an
                                  unwitnessed causal claim. Report-only: a
                                  caller gating on this should warn, not deny
-                                 (etalon#20). No ratchet, no tree.'
-CLI_FLAGS='--accept --causal'
+                                 (etalon#20). No ratchet, no tree.
+  state-prose-lint.sh --api OWNER/REPO [--accept]
+                                 census OWNER/REPO'\''s milestone and label
+                                 descriptions via the GitHub API for the same
+                                 state-describing patterns (etalon#137). Its
+                                 own ratchet: API objects carry no git tree to
+                                 re-baseline against.'
+CLI_FLAGS='--accept --causal --api'
 CLI_EXITS='  0  the tree was read and it is at or under the baseline, or --causal found nothing
   1  over the baseline, --accept was asked to raise it, or --causal found an unwitnessed claim
   2  usage error, or an unreadable baseline
   6  BLIND: not a repository, or the census could not read the tree'
-CLI_POSITIONAL=none
+CLI_POSITIONAL=any
 . "$(dirname "${BASH_SOURCE[0]}")/lib/cli-guard.sh"
 . "$(dirname "${BASH_SOURCE[0]}")/lib/exit-codes.sh"
 cli_guard "$@"
@@ -93,8 +99,10 @@ fi
 
 RATCHET="${STATE_PROSE_RATCHET:-$(dirname "${BASH_SOURCE[0]}")/state-prose.ratchet}"
 
-SCAN_AWK='
-BEGIN {
+# Shared by the tree census (SCAN_AWK) and the API census (API_SCAN_AWK)
+# below: the same lint, read against a different surface (etalon#137). Both
+# scripts' BEGIN block sets QTY/QTY_STOP before classify() is called.
+QTY_DEFS='
   # ([a-z][a-z-]*[ -]){0,2} used a POSIX interval expression. mawk, the
   # awk this script runs under here (readlink -f $(which awk)), does not
   # implement intervals: it matches false silently rather than erroring,
@@ -103,7 +111,24 @@ BEGIN {
   # explicitly rather than as a POSIX interval, are the portable fix.
   QTY = "(^|[^a-z0-9_-])(two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|hundred|[0-9]+)[ -]([a-z][a-z-]*[ -])?([a-z][a-z-]*[ -])?[a-z][a-z-]*s([^a-z]|$)"
   QTY_STOP = "(^|[^a-z])(is|was|has|as|this|thus|its|us|does|goes|less|else|yes|plus|across|unless|always|versus|status|series|means|says|gives|takes|makes|needs|reads|writes|exists|runs|does|its)([^a-z]|$)"
+'
+CLASSIFY_AWK_FN='
+function classify(line, s) {
+  s = tolower(line)
+  if (s ~ /(https?:\/\/|shellcheck |[$][{(])/) return ""
+  if (s ~ /exactly|by construction|at most|at least|no more than|invariant|(^| )(must|never|always|only|per|each|any|every)( |$)/) return ""
+  if (s ~ /(^|[^0-9])(19|20)[0-9][0-9]-[0-9][0-9]-[0-9][0-9]([^0-9]|$)/) return "date"
+  if (s ~ /(^| )as of( |$)/) return "as-of"
+  if (s ~ QTY && s !~ QTY_STOP) return "count"
+  return ""
 }
+'
+
+SCAN_AWK='
+BEGIN {
+'"$QTY_DEFS"'
+}
+'"$CLASSIFY_AWK_FN"'
 function lang(f) {
   if (f ~ /\.(md|markdown)$/)          return "m"
   if (f ~ /\.(sh|bash|conf|ya?ml|py)$/) return "h"
@@ -140,13 +165,7 @@ FNR == 1 {
   n = split(line, w, /[ \t]+/)
   if (n < 4) next
   considered++
-  s = tolower(line)
-  if (s ~ /(https?:\/\/|shellcheck |[$][{(])/) next
-  if (s ~ /exactly|by construction|at most|at least|no more than|invariant|(^| )(must|never|always|only|per|each|any|every)( |$)/) next
-  hit = ""
-  if (s ~ /(^|[^0-9])(19|20)[0-9][0-9]-[0-9][0-9]-[0-9][0-9]([^0-9]|$)/) hit = "date"
-  else if (s ~ /(^| )as of( |$)/) hit = "as-of"
-  else if (s ~ QTY && s !~ QTY_STOP) hit = "count"
+  hit = classify(line)
   if (hit == "") next
   printf "%s:%d: [%s] %s\n", FILENAME, FNR, hit, substr(line, 1, 90)
 }
@@ -167,6 +186,102 @@ $out
 EOF
   printf 'CONSIDERED %d\n' "$considered"
 }
+
+# --api censuses a GitHub repo's milestone and label descriptions, not a git
+# tree -- it runs before the git check below, the same reason --causal does
+# (etalon#137). Its ratchet is separate from $RATCHET: an API object carries
+# no blob to re-baseline a tree-shaped count against.
+API_SCAN_AWK='
+BEGIN {
+  FS = "\001"
+'"$QTY_DEFS"'
+}
+'"$CLASSIFY_AWK_FN"'
+{
+  if (NF < 3) next
+  considered++
+  hit = classify($3)
+  if (hit == "") next
+  printf "%s %s: [%s] %s\n", $1, $2, hit, substr($3, 1, 90)
+}
+END { printf "CONSIDERED %d\n", considered + 0 }
+'
+
+if [ "${1:-}" = --api ]; then
+  API_REPO="${2:-}"
+  case "$API_REPO" in
+    */*) ;;
+    *) die2 "--api needs an owner/repo argument, got: '${API_REPO:-}'" ;;
+  esac
+  case "${3:-}" in
+    '') API_ACCEPT=0 ;;
+    --accept) API_ACCEPT=1 ;;
+    *) die2 "unexpected argument after --api $API_REPO: $3" ;;
+  esac
+  API_RATCHET="${STATE_PROSE_API_RATCHET:-$(dirname "${BASH_SOURCE[0]}")/state-prose-api.ratchet}"
+
+  # STATE_PROSE_API_STUB, set only by the test fixture, reads a stubbed
+  # response from disk instead of calling `gh api` -- the acceptance criterion
+  # in etalon#137 is a census against a stub, never a live call.
+  api_fetch() { # <endpoint> (milestones|labels) -> JSON on stdout
+    if [ -n "${STATE_PROSE_API_STUB:-}" ]; then
+      cat "$STATE_PROSE_API_STUB/$1.json" 2>/dev/null
+    else
+      gh api "repos/$API_REPO/$1?per_page=100" 2>/dev/null
+    fi
+  }
+
+  MILESTONES_JSON="$(api_fetch milestones)"
+  [ -n "$MILESTONES_JSON" ] || dieblind "could not read milestones for $API_REPO"
+  LABELS_JSON="$(api_fetch labels)"
+  [ -n "$LABELS_JSON" ] || dieblind "could not read labels for $API_REPO"
+
+  API_RECORDS="$( {
+    printf '%s' "$MILESTONES_JSON" | jq -r '.[] | select(.description != null and (.description|length) > 0) |
+      ["milestone", ("#" + (.number|tostring) + " " + .title), (.description | gsub("\n+"; " / "))] | join("\u0001")' 2>/dev/null
+    printf '%s' "$LABELS_JSON" | jq -r '.[] | select(.description != null and (.description|length) > 0) |
+      ["label", .name, (.description | gsub("\n+"; " / "))] | join("\u0001")' 2>/dev/null
+  } )" || dieblind "could not parse the API response for $API_REPO"
+
+  API_REPORT="$(printf '%s\n' "$API_RECORDS" | awk "$API_SCAN_AWK")" || dieblind "the API census could not be scanned"
+  API_CONSIDERED="$(printf '%s\n' "$API_REPORT" | sed -n 's/^CONSIDERED //p')"
+  case "$API_CONSIDERED" in ''|*[!0-9]*) dieblind "the API census produced no count" ;; esac
+  API_FINDINGS="$(printf '%s\n' "$API_REPORT" | grep -v '^CONSIDERED ' | grep -c .)"
+
+  if [ "$API_ACCEPT" -eq 1 ]; then
+    if [ -f "$API_RATCHET" ]; then
+      prev="$(grep -v '^#' "$API_RATCHET" | tr -d '[:space:]')"
+      case "$prev" in ''|*[!0-9]*) prev='' ;; esac
+      if [ -n "$prev" ] && [ "$API_FINDINGS" -gt "$prev" ]; then
+        printf 'state-prose-lint --api --accept -- REFUSED. %s is %d description(s) ABOVE\n' "$API_REPO" "$((API_FINDINGS - prev))" >&2
+        printf '  the baseline of %s, and this ratchet only falls. Edit the description instead.\n' "$prev" >&2
+        exit "$EXIT_FINDING"
+      fi
+    fi
+    printf '# state-prose-api.ratchet -- state-describing milestone/label descriptions in %s. SHRINKS ONLY.\n# Written by state-prose-lint.sh --api --accept, which refuses to raise it.\n# accepted %s\n%s\n' \
+      "$API_REPO" "$(date -Is)" "$API_FINDINGS" > "$API_RATCHET" || dieblind "cannot write $API_RATCHET"
+    printf 'state-prose-lint --api --accept -- baseline for %s is now %s description(s).\n' "$API_REPO" "$API_FINDINGS"
+    exit "$EXIT_OK"
+  fi
+
+  [ -f "$API_RATCHET" ] || dieblind "no ratchet at $API_RATCHET -- run --api $API_REPO --accept to seed it."
+  was="$(grep -v '^#' "$API_RATCHET" | tr -d '[:space:]')"
+  case "$was" in ''|*[!0-9]*) die2 "unreadable baseline in $API_RATCHET: '$was'" ;; esac
+
+  printf 'state-prose-lint --api -- %s state-describing description(s) of %s considered in %s, baseline %s\n' \
+    "$API_FINDINGS" "$API_CONSIDERED" "$API_REPO" "$was"
+  printf '%s\n' "$API_REPORT" | grep -v '^CONSIDERED ' | grep . | sed 's/^/  /'
+
+  if [ "$API_FINDINGS" -gt "$was" ]; then
+    printf '  FLAG [state-prose-api] %s gained %d state-describing description(s) over\n' "$API_REPO" "$((API_FINDINGS - was))"
+    printf '        the baseline of %s. The ratchet only falls. A milestone or label\n' "$was"
+    printf '        description that states a count or a date drifts; infer it instead.\n'
+    exit "$EXIT_FINDING"
+  fi
+  [ "$API_FINDINGS" -lt "$was" ] && printf '  %d description(s) below the baseline -- run --api %s --accept to lock it in.\n' "$((was - API_FINDINGS))" "$API_REPO"
+  printf '  ok -- at or under the baseline.\n'
+  exit "$EXIT_OK"
+fi
 
 git rev-parse --git-dir >/dev/null 2>&1 || dieblind "not inside a git repository"
 
