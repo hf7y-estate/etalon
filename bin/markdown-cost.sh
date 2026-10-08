@@ -48,7 +48,17 @@ prose_lang() { # <path> -> 'h', 'j', 'm', 'p', or empty for a file we do not pri
     *.sh|*.bash|*.conf|*.yml|*.yaml)       printf 'h' ;;
     *.py)                                  printf 'p' ;;
     *.mjs|*.js)                            printf 'j' ;;
-    *)                                     : ;;
+    *)  # NO EXTENSION AT ALL is how a verb ships -- bin/<name> lands on PATH
+        # bare -- so pricing by suffix left every front door free (#11, #18: a
+        # reap of bin/consigne's comments moved the census by zero). The
+        # shebang names the language; a bare file without one is not guessed at.
+        case "${1##*/}" in *.*) return 0 ;; esac
+        local l=''; IFS= read -r l < "$1" 2>/dev/null
+        case "$l" in
+          '#!'*[/\ ]sh|'#!'*[/\ ]sh\ *|'#!'*bash*) printf 'h' ;;
+          '#!'*python*)                           printf 'p' ;;
+          '#!'*node*)                             printf 'j' ;;
+        esac ;;
   esac
 }
 
