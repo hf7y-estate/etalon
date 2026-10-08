@@ -205,7 +205,7 @@ RATCHET="${MARKDOWN_COST_RATCHET:-$(dirname "${BASH_SOURCE[0]}")/markdown-cost.r
 #   4  PROSE-BEARING FILES, not prose lines
 #   5  ...and a '#' comment TRAILING code, not just leading it (hf7y/etalon#48)
 #
-# WHY THIS EXISTS AT ALL. Unit 2 raised five of six estate repos above their
+# WHY THIS EXISTS AT ALL. Unit 2 raised most of the estate's repos above their
 # committed floor at once (crt +3278, wtul +1933, senechal +693). The ratchet
 # only falls and --accept refuses to raise, so without this the whole estate
 # wedges: no PR passes anywhere, and the only way out is the hand edit the
@@ -251,7 +251,7 @@ CANDIDATES_MAX="${MARKDOWN_COST_CANDIDATES:-10}"
 # DISCOVERED, NOT NAMED. A suite is found by a runner globbing `*.test.sh`, a
 # workflow by GitHub reading `.github/workflows/`, so NOTHING NAMES THEM is
 # structurally true of every one of them and says nothing about whether they are
-# dead. The first draft of this list ranked eight test suites at the top -- an
+# dead. The first draft of this list ranked several test suites at the top -- an
 # agent paying the bill from it would have deleted the estate's tests, which is
 # the same cheapest-token failure this list exists to stop, with worse blast
 # radius. Anything a glob reaches is not a candidate here.
@@ -267,7 +267,7 @@ CANDIDATES_MAX="${MARKDOWN_COST_CANDIDATES:-10}"
 # never grepping the tree for the filename. Nothing NAMES a skill any
 # more than something names a test suite a glob finds -- measured live
 # on hf7y/senechal#973's PR, where `.claude/commands/triage-run.md`
-# ranked as an unnamed candidate alongside 25 false-positive test suites
+# ranked as an unnamed candidate alongside a pile of false-positive test suites
 # (hf7y/etalon#52).
 candidate_excluded() { # <path> -> 0 if a runner or a platform discovers it
   local b; b="$(basename -- "$1")"
@@ -502,8 +502,8 @@ if [ "${1:-}" = --census ] || [ "${1:-}" = --accept ]; then
 
   # A branch answers for the prose IT adds, not for main moving beneath it.
   # Found on this guard's own first CI run: the branch was under its own
-  # baseline and still failed, because main had gained 235 lines since it was
-  # cut. On an absolute gate every PR re-accepts, and re-accepting on autopilot
+  # baseline and still failed, because main had drifted upward since the branch
+  # was cut. On an absolute gate every PR re-accepts, and re-accepting on autopilot
   # is how a ratchet loosens itself. So the FLAG needs both conditions.
   base=''
   mb=''
@@ -520,7 +520,7 @@ if [ "${1:-}" = --census ] || [ "${1:-}" = --accept ]; then
     prev_text="$(git show "$mb:${RATCHET#"$(git rev-parse --show-toplevel)/"}" 2>/dev/null)"
     prev="$(printf '%s\n' "$prev_text" | grep -v '^#' | tr -d '[:space:]')"
     case "$prev" in ''|*[!0-9]*) prev='' ;; esac
-    # Two numbers in different units are not a raise; the re-base IS the change.
+    # A number in a different unit is not a raise; the re-base IS the change.
     [ "$(ratchet_unit "$prev_text")" = "$was_unit" ] || prev=''
     if [ -n "$prev" ] && [ "$was" -gt "$prev" ]; then
       printf '  FLAG [prose-ratchet] this branch RAISES the baseline from %s to %s.\n' "$prev" "$was"

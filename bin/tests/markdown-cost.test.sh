@@ -193,8 +193,8 @@ echo
 
 echo "-- P. Python docstrings are prose (since MEASURE_UNIT 2)"
 # The bug this suite exists to keep fixed: until unit 2 a .py file was priced by
-# its '#' comments alone, so wtul#73 could cut four module docstrings from ~135
-# lines to ~45 and move the census by zero. See markdown-cost.sh's
+# its '#' comments alone, so wtul#73 could cut module docstrings from ~135
+# lines down to ~45 and move the census by zero. See markdown-cost.sh's
 # count_py_docstrings header.
 newrepo pydoc
 mkdir -p "$T/pydoc/lib"
