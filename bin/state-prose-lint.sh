@@ -101,8 +101,16 @@ BEGIN {
   # so QTY missed a counted plural separated from its number by one or
   # more intervening words. The optional groups below, written out
   # explicitly rather than as a POSIX interval, are the portable fix.
-  QTY = "(^|[^a-z0-9_-])(two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|hundred|[0-9]+)[ -]([a-z][a-z-]*[ -])?([a-z][a-z-]*[ -])?[a-z][a-z-]*s([^a-z]|$)"
+  # A number directly after "#" is an issue reference, not a count --
+  # "#48 carries the case" is not a quantity -- so "#" joins the excluded
+  # boundary set rather than opening a match (etalon#4).
+  QTY = "(^|[^a-z0-9_#-])(two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|hundred|[0-9]+)[ -]([a-z][a-z-]*[ -])?([a-z][a-z-]*[ -])?[a-z][a-z-]*s([^a-z]|$)"
   QTY_STOP = "(^|[^a-z])(is|was|has|as|this|thus|its|us|does|goes|less|else|yes|plus|across|unless|always|versus|status|series|means|says|gives|takes|makes|needs|reads|writes|exists|runs|does|its)([^a-z]|$)"
+  # etalon#4: QTY_STOP used to be tested against the whole line, so a stop
+  # word anywhere -- "it WAS cut" -- exempted a real count elsewhere in the
+  # same line ("gained 235 lines"). It is now tested against only the
+  # substring QTY itself matched (see match()/RSTART/RLENGTH below), so the
+  # stop word has to be the counted phrase, not just present somewhere.
 }
 function lang(f) {
   if (f ~ /\.(md|markdown)$/)          return "m"
@@ -146,7 +154,7 @@ FNR == 1 {
   hit = ""
   if (s ~ /(^|[^0-9])(19|20)[0-9][0-9]-[0-9][0-9]-[0-9][0-9]([^0-9]|$)/) hit = "date"
   else if (s ~ /(^| )as of( |$)/) hit = "as-of"
-  else if (s ~ QTY && s !~ QTY_STOP) hit = "count"
+  else if (match(s, QTY) && substr(s, RSTART, RLENGTH) !~ QTY_STOP) hit = "count"
   if (hit == "") next
   printf "%s:%d: [%s] %s\n", FILENAME, FNR, hit, substr(line, 1, 90)
 }

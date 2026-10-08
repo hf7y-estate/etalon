@@ -163,4 +163,19 @@ G extensionless add -A; G extensionless commit -qm blob
 run extensionless
 hasnt "H5 a non-shebang extensionless file is still skipped" "$RUN_OUT" "binary-blob"
 
+section "I. a stop word exempts the counted phrase, not the line -- etalon#4"
+newrepo stopword
+printf '# main had gained 235 lines since it was cut\nexit 0\n' > "$T/stopword/drift.sh"
+G stopword add -A; G stopword commit -qm drift
+run stopword --accept
+has "I1 a stop word elsewhere no longer hides the count" "$RUN_OUT" "baseline is now 1 line(s)"
+G stopword add -A; G stopword commit -qm ratchet
+run stopword
+has "I2 the count is still named"                 "$RUN_OUT" "[count]"
+printf '# 2 is less than 3, and the 3 of us agree\nexit 0\n' > "$T/stopword/drift.sh"
+G stopword add -A; G stopword commit -qm clear
+run stopword
+rc  "I3 the counted phrase itself being a stop word still clears it" 0 "$RUN_RC"
+hasnt "I4 no FLAG"                                "$RUN_OUT" "FLAG ["
+
 summary
