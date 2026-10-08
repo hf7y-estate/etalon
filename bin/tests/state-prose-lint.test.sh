@@ -163,4 +163,54 @@ G extensionless add -A; G extensionless commit -qm blob
 run extensionless
 hasnt "H5 a non-shebang extensionless file is still skipped" "$RUN_OUT" "binary-blob"
 
+section "I. --api censuses milestone/label descriptions, stubbed -- etalon#137"
+apistub() { # <dir> <milestones-json> <labels-json>
+  mkdir -p "$T/$1"
+  printf '%s' "$2" > "$T/$1/milestones.json"
+  printf '%s' "$3" > "$T/$1/labels.json"
+}
+runapi() {
+  local stub="$1"; shift
+  RUN_OUT="$(STATE_PROSE_API_STUB="$T/$stub" STATE_PROSE_API_RATCHET="$T/$stub/.api-ratchet" "$SCRIPT" "$@" 2>&1)"
+  RUN_RC=$?
+}
+
+apistub apiclean \
+  '[{"number": 1, "title": "clean", "description": "A normal milestone with no state claim."}]' \
+  '[{"name": "bug", "description": "Something is broken."}]'
+runapi apiclean --api acme/widgets --accept
+rc  "I1 --api --accept seeds a baseline"          0 "$RUN_RC"
+has "I2 and says what it recorded"                "$RUN_OUT" "baseline for acme/widgets is now 0 description(s)"
+runapi apiclean --api acme/widgets
+rc  "I3 a clean API census exits 0"               0 "$RUN_RC"
+hasnt "I4 raising no FLAG"                        "$RUN_OUT" "FLAG ["
+
+apistub apistale \
+  '[{"number": 2, "title": "v0.2", "description": "OPEN FOR FILING -- NOT IN PROGRESS.\nNobody works it until armed. probed 2026-09-02."}]' \
+  '[{"name": "needs-host", "description": "Three accounts are stamped unknown as of 2026-08-13."}]'
+runapi apistale --api acme/widgets --accept
+has "I5 the baseline counts the stale descriptions" "$RUN_OUT" "baseline for acme/widgets is now 2 description(s)"
+runapi apistale --api acme/widgets
+rc  "I6 at the baseline it exits 0"               0 "$RUN_RC"
+has "I7 the milestone description is named"       "$RUN_OUT" "milestone #2 v0.2:"
+has "I8 the label description is named"           "$RUN_OUT" "label needs-host:"
+
+runapi apiclean --api acme/widgets  # baseline still 0 from I1/I2
+RUN_OUT="$(STATE_PROSE_API_STUB="$T/apistale" STATE_PROSE_API_RATCHET="$T/apiclean/.api-ratchet" "$SCRIPT" --api acme/widgets 2>&1)"
+RUN_RC=$?
+rc  "I9 growing past a 0 baseline exits 1"        1 "$RUN_RC"
+has "I10 and names the ratchet"                   "$RUN_OUT" "FLAG [state-prose-api]"
+RUN_OUT="$(STATE_PROSE_API_STUB="$T/apistale" STATE_PROSE_API_RATCHET="$T/apiclean/.api-ratchet" "$SCRIPT" --api acme/widgets --accept 2>&1)"
+RUN_RC=$?
+rc  "I11 --accept REFUSES to raise it"            1 "$RUN_RC"
+has "I12 and says so"                             "$RUN_OUT" "REFUSED"
+
+RUN_OUT="$("$SCRIPT" --api 2>&1)"; RUN_RC=$?
+rc  "I13 --api with no repo is a usage error"     2 "$RUN_RC"
+RUN_OUT="$("$SCRIPT" --api notaslash 2>&1)"; RUN_RC=$?
+rc  "I14 --api without owner/repo shape errors"   2 "$RUN_RC"
+RUN_OUT="$(STATE_PROSE_API_STUB="$T/nosuchdir" "$SCRIPT" --api acme/widgets 2>&1)"; RUN_RC=$?
+rc  "I15 an unreadable stub is BLIND"             6 "$RUN_RC"
+has "I16 and says it could not look"              "$RUN_OUT" "BLIND"
+
 summary
