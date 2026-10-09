@@ -163,4 +163,39 @@ G extensionless add -A; G extensionless commit -qm blob
 run extensionless
 hasnt "H5 a non-shebang extensionless file is still skipped" "$RUN_OUT" "binary-blob"
 
+section "I. --predicate reads TEXT, not a tree -- etalon#141"
+predicate() { RUN_OUT="$("$SCRIPT" --predicate <<<"$1" 2>&1)"; RUN_RC=$?; }
+
+predicate 'The archive quoted a 173-word median, a 54/34/11 split, and 28% preview snippets.'
+rc  "I1 bare measured figures exit 1 -- the wavebucks case" 1 "$RUN_RC"
+has "I2 and quotes the claim"                     "$RUN_OUT" "UNWITNESSED: The archive quoted"
+has "I3 report-only, says so"                     "$RUN_OUT" "does not deny on its own"
+
+predicate 'The archive quoted a 173-word median, a 54/34/11 split, and 28% preview snippets.
+
+Measured 2026-10-07 via:
+
+    mailman digest --stats'
+rc  "I4 a command witness clears the same figures" 0 "$RUN_RC"
+hasnt "I5 no FLAG"                                "$RUN_OUT" "FLAG ["
+
+predicate 'It handles a 173-word median, see docs/stats.md:42 for the source.'
+rc  "I6 a bare citation with no timestamp still flags" 1 "$RUN_RC"
+
+predicate 'It handles a 173-word median, see docs/stats.md:42, fetched 2026-10-07.'
+rc  "I7 a citation plus a fetch timestamp clears it" 0 "$RUN_RC"
+
+predicate 'Each account must hold at most three keys.'
+rc  "I8 invariant language is not a bare figure"  0 "$RUN_RC"
+
+predicate 'Nothing measured here, just a status update.'
+rc  "I9 no figure exits 0"                        0 "$RUN_RC"
+has "I10 and says zero were found"                "$RUN_OUT" "0 unwitnessed figure(s)"
+
+predicate ''
+rc  "I11 empty stdin exits 0, not BLIND"          0 "$RUN_RC"
+
+RUN_OUT="$(cd "$T/notrepo" && "$SCRIPT" --predicate </dev/null 2>&1)"; RUN_RC=$?
+rc  "I12 --predicate needs no git repository at all" 0 "$RUN_RC"
+
 summary
