@@ -163,4 +163,41 @@ G extensionless add -A; G extensionless commit -qm blob
 run extensionless
 hasnt "H5 a non-shebang extensionless file is still skipped" "$RUN_OUT" "binary-blob"
 
+section "I. --predicate reads TEXT, not a tree -- etalon#141, the wavebucks case"
+predicate() { RUN_OUT="$("$SCRIPT" --predicate <<<"$1" 2>&1)"; RUN_RC=$?; }
+
+predicate 'The mailing-list archive has a 173-word median, a 54/34/11 split, and
+28% preview snippets.'
+rc  "I1 bare figures with no witness exit 1"      1 "$RUN_RC"
+has "I2 and quotes the claim"                     "$RUN_OUT" "UNWITNESSED: The mailing-list archive"
+has "I3 report-only, says so"                     "$RUN_OUT" "does not deny on its own"
+
+predicate 'The mailing-list archive has a 173-word median, a 54/34/11 split, and
+28% preview snippets.
+
+Fetched 2026-09-01 via:
+
+    mailbox-stats --archive aedile/archive.mbox'
+rc  "I4 the same figures with a dated fetch command clear it" 0 "$RUN_RC"
+hasnt "I5 no FLAG"                                "$RUN_OUT" "FLAG ["
+
+predicate 'The archive has a 173-word median, see https://example.com/archive.'
+rc  "I6 a bare citation with no timestamp still flags" 1 "$RUN_RC"
+
+predicate 'The archive has a 173-word median, see https://example.com/archive, as of 2026-09-01.'
+rc  "I7 a citation plus a timestamp clears it"    0 "$RUN_RC"
+
+predicate 'It is `173` words, confirmed by running it.'
+rc  "I8 a same-paragraph backtick witness clears it" 0 "$RUN_RC"
+
+predicate 'Nothing measured here, just a status update.'
+rc  "I9 no measured figure exits 0"               0 "$RUN_RC"
+has "I10 and says zero were found"                "$RUN_OUT" "0 unwitnessed measured figure(s)"
+
+predicate ''
+rc  "I11 empty stdin exits 0, not BLIND"          0 "$RUN_RC"
+
+RUN_OUT="$(cd "$T/notrepo" && "$SCRIPT" --predicate </dev/null 2>&1)"; RUN_RC=$?
+rc  "I12 --predicate needs no git repository at all" 0 "$RUN_RC"
+
 summary
