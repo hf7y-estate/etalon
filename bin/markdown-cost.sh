@@ -41,14 +41,23 @@ cli_guard "$@"
 # a 7.5 KB one free to keep, free to copy, and worth nothing when deleted.
 # Only suffixes this estate uses; a bare foo.template is not guessed at.
 prose_lang() { # <path> -> 'h', 'j', 'm', 'p', or empty for a file we do not price
-  local f="$1"
+  local f="$1" first
   case "$f" in *.template|*.tmpl|*.example|*.in) f="${f%.*}" ;; esac
   case "$f" in
-    *.md|*.markdown)                       printf 'm' ;;
-    *.sh|*.bash|*.conf|*.yml|*.yaml)       printf 'h' ;;
-    *.py)                                  printf 'p' ;;
-    *.mjs|*.js)                            printf 'j' ;;
-    *)                                     : ;;
+    *.md|*.markdown)                       printf 'm'; return ;;
+    *.sh|*.bash|*.conf|*.yml|*.yaml)       printf 'h'; return ;;
+    *.py)                                  printf 'p'; return ;;
+    *.mjs|*.js)                            printf 'j'; return ;;
+  esac
+  # etalon#11: a declared VERB has no extension, by convention -- the bare
+  # name is what lands on PATH. The case above prices every one of them at
+  # zero no matter how much prose it carries. Sniff the shebang the same way
+  # state-prose-lint.sh already does for the same reason (etalon#24).
+  first="$(head -n 1 -- "$1" 2>/dev/null)"
+  case "$first" in
+    '#!'*/sh|'#!'*/sh\ *|'#!'*/bash|'#!'*/bash\ *) printf 'h' ;;
+    '#!'*env\ sh|'#!'*env\ sh\ *|'#!'*env\ bash|'#!'*env\ bash\ *) printf 'h' ;;
+    '#!'*/python*|'#!'*env\ python*)               printf 'p' ;;
   esac
 }
 
@@ -204,6 +213,8 @@ RATCHET="${MARKDOWN_COST_RATCHET:-$(dirname "${BASH_SOURCE[0]}")/markdown-cost.r
 #   3  ...and files behind a scaffolding suffix (hf7y/etalon#18)
 #   4  PROSE-BEARING FILES, not prose lines
 #   5  ...and a '#' comment TRAILING code, not just leading it (hf7y/etalon#48)
+#   6  ...and an extensionless file whose shebang names sh/bash/python
+#      (hf7y/etalon#11)
 #
 # WHY THIS EXISTS AT ALL. Unit 2 raised five of six estate repos above their
 # committed floor at once (crt +3278, wtul +1933, senechal +693). The ratchet
@@ -234,7 +245,16 @@ RATCHET="${MARKDOWN_COST_RATCHET:-$(dirname "${BASH_SOURCE[0]}")/markdown-cost.r
 # see hf7y/etalon#48. The old baseline answers "how many files have a LEADING
 # '#' comment", which is a smaller count than this unit measures; it is not
 # comparable, so it bumps rather than silently inflating every repo's number.
-MEASURE_UNIT=5
+# Unit 6 widens what is CLASSIFIED, not just what counts as a comment within a
+# classified file. `prose_lang()` priced by extension alone, and a declared
+# verb -- an executable `bin/<name>` with no extension, the estate's own
+# convention for what lands on PATH -- fell into the unpriced `*)` arm no
+# matter how much prose it carried (hf7y/etalon#11: `bin/consigne`,
+# `bin/fonde` and others measured at zero for exactly this reason). The old
+# baseline answers "how many files are prose-bearing by EXTENSION", which
+# undercounts relative to this unit wherever a repo has verbs; it is not
+# comparable, so it bumps.
+MEASURE_UNIT=6
 
 CANDIDATES_MAX="${MARKDOWN_COST_CANDIDATES:-10}"
 

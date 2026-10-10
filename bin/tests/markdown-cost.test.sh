@@ -219,7 +219,7 @@ G "$T/pydoc" add -A
 G "$T/pydoc" commit -qm docstrings
 echo "-- P(census). a docstring reap MOVES the census"
 RUN_OUT="$(cd "$T/pydoc" && MARKDOWN_COST_RATCHET="$T/pydoc/.r" "$SCRIPT" --accept 2>&1)"
-has "P3 --accept seeds and stamps the unit"          "$(cat "$T/pydoc/.r")" "# unit: 5"
+has "P3 --accept seeds and stamps the unit"          "$(cat "$T/pydoc/.r")" "# unit: 6"
 printf '"""One."""\n' > "$T/pydoc/lib/essay.py"
 G "$T/pydoc" add -A; G "$T/pydoc" commit -qm reap
 after="$(cd "$T/pydoc" && MARKDOWN_COST_RATCHET="$T/pydoc/.r" "$SCRIPT" --census 2>&1)"
@@ -394,7 +394,7 @@ G "$T/unitchg" update-ref refs/remotes/origin/main main
 G "$T/unitchg" checkout -q -b work
 RUN_OUT="$(cd "$T/unitchg" && MARKDOWN_COST_RATCHET="$T/unitchg/.r" "$SCRIPT" --census 2>&1)"; RUN_RC=$?
 rc  "U1 a stale-unit baseline does not fail a branch that adds nothing" 0 "$RUN_RC"
-has "U2 it says which unit the old number was in"    "$RUN_OUT" "is unit 1, this guard measures in unit 5"
+has "U2 it says which unit the old number was in"    "$RUN_OUT" "is unit 1, this guard measures in unit 6"
 has "U3 and points at --accept to re-base"           "$RUN_OUT" "re-base"
 # ...and padding the docstring in a file that already counts buys nothing,
 # which under units 1-3 was the whole payment.
@@ -463,7 +463,7 @@ newrepo lines
 printf '#!/usr/bin/env bash\n%s\necho x\n' "$(for i in $(seq 1 40); do printf '# stale line %s\n' "$i"; done)" > "$T/lines/fat.sh"
 G "$T/lines" add -A; G "$T/lines" commit -qm "a file carrying forty lines of prose"
 G "$T/lines" update-ref refs/remotes/origin/main main
-printf '# markdown-cost.ratchet\n# unit: 5\n# accepted whenever\n2\n' > "$T/lines/.r"
+printf '# markdown-cost.ratchet\n# unit: 6\n# accepted whenever\n2\n' > "$T/lines/.r"
 G "$T/lines" checkout -qb reap
 # add a documented file AND reap the fat one's prose: the tree loses lines
 printf '#!/usr/bin/env bash\n# a new file, documented\n# second line of prose\necho y\n' > "$T/lines/new.sh"
@@ -478,7 +478,7 @@ has   "L4 the floor is explicitly NOT lowered by it"       "$RUN_OUT" "does not 
 # ...but a SHAVE cannot pay: trimming a comment off one surviving file while
 # adding a documented one leaves the tree with more prose, not less.
 G "$T/lines" checkout -q main; G "$T/lines" checkout -qb shave
-printf '# markdown-cost.ratchet\n# unit: 5\n# accepted whenever\n2\n' > "$T/lines/.r"
+printf '# markdown-cost.ratchet\n# unit: 6\n# accepted whenever\n2\n' > "$T/lines/.r"
 printf '#!/usr/bin/env bash\n# another new file\n# with two lines of prose\necho y\n' > "$T/lines/new2.sh"
 printf '#!/usr/bin/env bash\n%s\necho x\n' "$(for i in $(seq 1 39); do printf '# stale line %s\n' "$i"; done)" > "$T/lines/fat.sh"
 G "$T/lines" add -A; G "$T/lines" commit -qm "shave one line, add a file"
@@ -487,9 +487,31 @@ rc    "L5 shaving one line off a survivor does NOT pay for a file" 1 "$RUN_RC"
 has   "L6 ...and the reap directive is what it gets"               "$RUN_OUT" "RUN /reap"
 
 echo "-- U(accept). --accept still refuses to raise WITHIN a unit"
-printf '# markdown-cost.ratchet\n# unit: 5\n# accepted whenever\n1\n' > "$T/unitchg/.r"
+printf '# markdown-cost.ratchet\n# unit: 6\n# accepted whenever\n1\n' > "$T/unitchg/.r"
 RUN_OUT="$(cd "$T/unitchg" && MARKDOWN_COST_RATCHET="$T/unitchg/.r" "$SCRIPT" --accept 2>&1)"; RUN_RC=$?
 rc  "U6 same-unit raise is still REFUSED"            1 "$RUN_RC"
 has "U7 and says so"                                 "$RUN_OUT" "REFUSED"
+
+echo "-- X. an extensionless shebang file is priced too (hf7y/etalon#11, unit 6)"
+newrepo verbs
+printf '#!/usr/bin/env bash\n# the estate convention: a verb lands on PATH with no extension\nexit 0\n' > "$T/verbs/consigne"
+chmod +x "$T/verbs/consigne"
+G "$T/verbs" add -A; G "$T/verbs" commit -qm seed
+RUN_OUT="$(cd "$T/verbs" && MARKDOWN_COST_RATCHET="$T/verbs/.r" "$SCRIPT" --accept 2>&1)"; RUN_RC=$?
+rc  "X1 --accept seeds the baseline counting the extensionless verb" 0 "$RUN_RC"
+has "X1 ...alongside newrepo's CHANGES.md"           "$RUN_OUT" "baseline is now 2 prose-bearing file(s)"
+has "X1 ...and stamps unit 6"                        "$(cat "$T/verbs/.r")" "# unit: 6"
+
+printf '#!/usr/bin/env python3\n# a second verb, python this time\nraise SystemExit(0)\n' > "$T/verbs/fonde"
+chmod +x "$T/verbs/fonde"
+G "$T/verbs" add -A; G "$T/verbs" commit -qm "add a python verb"
+RUN_OUT="$(cd "$T/verbs" && MARKDOWN_COST_RATCHET="$T/verbs/.r" "$SCRIPT" --census 2>&1)"; RUN_RC=$?
+rc  "X2 a python-shebang verb is sniffed too, and FLAGs the growth" 1 "$RUN_RC"
+has "X2 and the tree is counted at 3"                "$RUN_OUT" "3 prose-bearing file(s), baseline 2"
+
+printf 'no shebang here, just a plain extensionless file\n' > "$T/verbs/plain-data"
+G "$T/verbs" add -A; G "$T/verbs" commit -qm "add a non-shebang extensionless file"
+RUN_OUT="$(cd "$T/verbs" && MARKDOWN_COST_RATCHET="$T/verbs/.r" "$SCRIPT" --census 2>&1)"; RUN_RC=$?
+has "X3 a non-shebang extensionless file is still unpriced" "$RUN_OUT" "3 prose-bearing file(s), baseline 2"
 
 summary
