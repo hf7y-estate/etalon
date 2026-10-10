@@ -236,4 +236,45 @@ rc  "I18 --api with no OWNER/REPO is a usage error" 2 "$RUN_RC"
 RUN_OUT="$("$SCRIPT" --api hf7y/sample --bogus 2>&1)"; RUN_RC=$?
 rc  "I19 a trailing argument other than --accept is a usage error" 2 "$RUN_RC"
 
+section "J. --predicate reads TEXT, not a tree -- etalon#141, the wavebucks case"
+predicate() { RUN_OUT="$("$SCRIPT" --predicate <<<"$1" 2>&1)"; RUN_RC=$?; }
+
+predicate 'The archive quoted a 173-word median, a 54/34/11 split, and 28% preview
+snippets.'
+rc  "J1 a bare measured figure exits 1"           1 "$RUN_RC"
+has "J2 and quotes the claim"                     "$RUN_OUT" "UNWITNESSED: The archive quoted"
+has "J3 report-only, says so"                      "$RUN_OUT" "does not deny on its own"
+
+predicate 'The archive quoted a 173-word median, a 54/34/11 split, and 28% preview
+snippets.
+
+Fetched as of 2026-10-07:
+
+    curl -s https://example.com/api/stats'
+rc  "J4 the same figures with a command + fetch timestamp clear it" 0 "$RUN_RC"
+hasnt "J5 no FLAG"                                 "$RUN_OUT" "FLAG ["
+
+predicate 'The archive quoted a 173-word median, a 54/34/11 split, and 28% preview
+snippets.
+
+    curl -s https://example.com/api/stats'
+rc  "J6 a command with no timestamp still flags"   1 "$RUN_RC"
+
+predicate 'The archive quoted a 173-word median, a 54/34/11 split, and 28% preview
+snippets as of 2026-10-07.'
+rc  "J7 a timestamp with no command/citation still flags" 1 "$RUN_RC"
+
+predicate 'Each account must hold at most three keys at all times.'
+rc  "J8 an invariant is not a measured figure"     0 "$RUN_RC"
+
+predicate 'Nothing measured here, just a status update about the plan.'
+rc  "J9 no number at all exits 0"                  0 "$RUN_RC"
+has "J10 and says zero were found"                 "$RUN_OUT" "0 unwitnessed measured figure(s)"
+
+predicate ''
+rc  "J11 empty stdin exits 0, not BLIND"           0 "$RUN_RC"
+
+RUN_OUT="$(cd "$T/notrepo" && "$SCRIPT" --predicate </dev/null 2>&1)"; RUN_RC=$?
+rc  "J12 --predicate needs no git repository at all" 0 "$RUN_RC"
+
 summary

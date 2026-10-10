@@ -18,6 +18,12 @@ CLI_USAGE='  state-prose-lint.sh           census the TREE against bin/state-pro
                                  unwitnessed causal claim. Report-only: a
                                  caller gating on this should warn, not deny
                                  (etalon#20). No ratchet, no tree.
+  state-prose-lint.sh --predicate
+                                 read TEXT on stdin (an issue/PR body), flag a
+                                 bare measured figure with no adjacent command
+                                 or citation AND timestamp of when it was
+                                 fetched. Report-only, same stance as --causal
+                                 (etalon#141). No ratchet, no tree.
   state-prose-lint.sh --api OWNER/REPO
                                  census OWNER/REPOs milestone and label
                                  descriptions via the GitHub API against
@@ -26,9 +32,9 @@ CLI_USAGE='  state-prose-lint.sh           census the TREE against bin/state-pro
                                  own ratchet (etalon#137).
   state-prose-lint.sh --api OWNER/REPO --accept
                                  record that census as the baseline'
-CLI_FLAGS='--accept --causal --api'
-CLI_EXITS='  0  the tree was read and it is at or under the baseline, or --causal found nothing
-  1  over the baseline, --accept was asked to raise it, or --causal found an unwitnessed claim
+CLI_FLAGS='--accept --causal --predicate --api'
+CLI_EXITS='  0  the tree was read and it is at or under the baseline, or --causal/--predicate found nothing
+  1  over the baseline, --accept was asked to raise it, or --causal/--predicate found an unwitnessed claim
   2  usage error, or an unreadable baseline
   6  BLIND: not a repository, the census could not read the tree, or --api
      could not read OWNER/REPOs milestones or labels from the API'
@@ -95,6 +101,77 @@ if [ "${1:-}" = --causal ]; then
     printf '  FLAG [causal] a causal claim with no adjacent witness. Report-only: this\n'
     printf '        does not deny on its own (etalon#20) -- attach the command, citation,\n'
     printf '        or run URL that was checked before writing it.\n'
+    exit "$EXIT_FINDING"
+  fi
+  exit "$EXIT_OK"
+fi
+
+# --predicate reads TEXT on stdin like --causal (no tree, no ratchet -- an
+# issue/PR body has no merge base). etalon#141: a bare measured figure (a
+# number, a percentage, a ratio, or a number word, outside narrative filler)
+# is a staleness risk -- it can only be re-verified by re-running whatever
+# produced it. This extends --causal's witness grammar (command, backtick
+# span, run URL, file:line citation) with a timestamp requirement, since
+# staleness and not provenance is what this mode exists to catch: a witness
+# needs BOTH a command/citation AND a nearby timestamp, either alone is not
+# enough (wavebucks quoted a 173-word median read off an archive that was
+# since replaced, with nothing recording that the number ever needed
+# re-checking).
+PREDICATE_AWK='
+function flushpara() {
+  if (buf_nonblank) { n++; P[n] = para }
+  para = ""; buf_nonblank = 0
+}
+BEGIN {
+  QTY = "(^|[^a-z0-9_-])(two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|hundred|[0-9]+)[ -]([a-z][a-z-]*[ -])?([a-z][a-z-]*[ -])?[a-z][a-z-]*s([^a-z]|$)"
+  QTY_STOP = "(^|[^a-z])(is|was|has|as|this|thus|its|us|does|goes|less|else|yes|plus|across|unless|always|versus|status|series|means|says|gives|takes|makes|needs|reads|writes|exists|runs|does|its)([^a-z]|$)"
+  PCT = "(^|[^a-z0-9_-])[0-9]+(\\.[0-9]+)?%([^a-z0-9]|$)"
+  RATIO = "(^|[^a-z0-9_-])[0-9]+(/[0-9]+)+([^a-z0-9]|$)"
+  FILLER = "exactly|by construction|at most|at least|no more than|invariant|(^| )(must|never|always|only|per|each|any|every)( |$)"
+}
+{
+  if ($0 == "") { flushpara(); next }
+  buf_nonblank = 1
+  if (para == "") para = $0; else para = para "\n" $0
+}
+END {
+  flushpara()
+  for (i = 1; i <= n; i++) {
+    low = tolower(P[i])
+    isqty = (low ~ QTY && low !~ QTY_STOP) || (low ~ PCT) || (low ~ RATIO)
+    C[i] = isqty && low !~ FILLER
+    CMD[i] = (P[i] ~ /```/) || (P[i] ~ /`[^`]+`/) || (low ~ /https?:\/\//) \
+        || (P[i] ~ /[A-Za-z0-9_.\/-]+\.[a-z]+:[0-9]+/) || (P[i] ~ /(^|\n)[ \t][ \t][ \t][ \t]/)
+    TS[i] = (low ~ /(^|[^0-9])(19|20)[0-9][0-9]-[0-9][0-9]-[0-9][0-9]([^0-9]|$)/) || (low ~ /(^| )as of( |$)/) \
+        || (low ~ /(^| )(fetched|retrieved)( |$)/)
+  }
+  findings = 0
+  for (i = 1; i <= n; i++) {
+    if (!C[i]) continue
+    has_cmd = 0; has_ts = 0
+    for (j = i - 2; j <= i + 2; j++) { if (j >= 1 && j <= n) { if (CMD[j]) has_cmd = 1; if (TS[j]) has_ts = 1 } }
+    if (has_cmd && has_ts) continue
+    flat = P[i]; gsub(/\n/, " / ", flat)
+    printf "UNWITNESSED: %s\n", substr(flat, 1, 160)
+    findings++
+  }
+  printf "PARAGRAPHS %d\n", n
+  printf "FINDINGS %d\n", findings
+}
+'
+
+if [ "${1:-}" = --predicate ]; then
+  PREDICATE_OUT="$(awk "$PREDICATE_AWK")" || dieblind "could not scan stdin"
+  PREDICATE_PARAS="$(printf '%s\n' "$PREDICATE_OUT" | sed -n 's/^PARAGRAPHS //p')"
+  PREDICATE_FOUND="$(printf '%s\n' "$PREDICATE_OUT" | sed -n 's/^FINDINGS //p')"
+  case "$PREDICATE_FOUND" in ''|*[!0-9]*) dieblind "the predicate scan produced no finding count" ;; esac
+  printf 'state-prose-lint --predicate -- %s unwitnessed measured figure(s) of %s paragraph(s) considered\n' \
+    "$PREDICATE_FOUND" "$PREDICATE_PARAS"
+  printf '%s\n' "$PREDICATE_OUT" | grep '^UNWITNESSED: ' | sed 's/^/  /'
+  if [ "$PREDICATE_FOUND" -gt 0 ]; then
+    printf '  FLAG [predicate] a measured figure with no adjacent command/citation AND\n'
+    printf '        timestamp of when it was fetched. Report-only: this does not deny on its own\n'
+    printf '        (etalon#141) -- attach the command or citation, and when it ran.\n'
     exit "$EXIT_FINDING"
   fi
   exit "$EXIT_OK"
